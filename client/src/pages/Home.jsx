@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
 import ProductCard from '../components/ProductCard';
 import SkeletonCard from '../components/SkeletonCard';
 import api from '../lib/axios';
@@ -8,6 +9,7 @@ export default function Home() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
 
   useEffect(() => {
     api.get('/products?limit=8&sort=top_rated')
@@ -39,12 +41,14 @@ export default function Home() {
             >
               Shop Now →
             </button>
-            <button
-              onClick={() => navigate('/register')}
-              className="border border-smoke text-pureWhite rounded-full px-8 py-3 hover:bg-bodyInk transition"
-            >
-              Join Free
-            </button>
+            {!user && (
+              <button
+                onClick={() => navigate('/register')}
+                className="border border-smoke text-pureWhite rounded-full px-8 py-3 hover:bg-bodyInk transition"
+              >
+                Join Free
+              </button>
+            )}
           </div>
 
           {/* Stats */}
