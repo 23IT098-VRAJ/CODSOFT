@@ -12,10 +12,26 @@ app.use(cors());
 app.use(express.json());
 
 // DB Connection
-mongoose
-  .connect(process.env.MONGO_URI)
+if (!process.env.MONGO_URI) {
+  console.error('FATAL: MONGO_URI is missing!');
+} else {
+  mongoose.connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 5000, // Fail fast if IP is blocked
+  })
   .then(() => console.log('MongoDB connected'))
   .catch((err) => console.error('MongoDB connection error:', err));
+}
+
+// Diagnostic Middleware for Serverless
+app.use((req, res, next) => {
+  if (!process.env.MONGO_URI) {
+    return res.status(500).json({ 
+      success: false, 
+      message: "🚨 DEPLOYMENT ERROR: MONGO_URI environment variable is missing in Vercel! Please add it in Vercel Settings > Environment Variables." 
+    });
+  }
+  next();
+});
 
 // Route stubs — replaced as routes are built
 const authRoutes = require('./routes/auth');
