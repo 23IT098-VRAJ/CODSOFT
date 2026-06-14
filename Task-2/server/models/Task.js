@@ -23,9 +23,8 @@ const TaskSchema = new Schema({
 });
 
 // Update updatedAt before each save
-TaskSchema.pre('save', function (next) {
+TaskSchema.pre('save', function () {
   this.updatedAt = Date.now();
-  next();
 });
 
 // Index for efficient Kanban queries

@@ -7,7 +7,7 @@ const ProjectSchema = new Schema({
   color: {
     type: String,
     default: '#6366f1',
-    enum: ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#ec4899"],
+    // No enum restriction — allow any hex color
   },
   ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   members: [{ type: Schema.Types.ObjectId, ref: 'User' }],
@@ -21,7 +21,7 @@ const ProjectSchema = new Schema({
 });
 
 // Auto-add ownerId to members on create
-ProjectSchema.pre('save', function (next) {
+ProjectSchema.pre('save', function () {
   if (this.isNew) {
     const ownerIdStr = this.ownerId.toString();
     const alreadyMember = this.members.some((m) => m.toString() === ownerIdStr);
@@ -29,7 +29,6 @@ ProjectSchema.pre('save', function (next) {
       this.members.push(this.ownerId);
     }
   }
-  next();
 });
 
 module.exports = mongoose.model('Project', ProjectSchema);
