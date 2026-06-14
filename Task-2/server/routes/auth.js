@@ -4,7 +4,7 @@ const User = require('../models/User');
 
 const router = express.Router();
 
-const AVATAR_COLORS = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#ec4899"];
+const AVATAR_COLORS = ["#3730A3","#78350F","#064E3B","#7F1D1D","#4C1D95","#881337"];
 
 const generateToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' });

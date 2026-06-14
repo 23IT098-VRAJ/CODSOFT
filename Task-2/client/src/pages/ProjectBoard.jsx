@@ -119,10 +119,10 @@ export default function ProjectBoard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-[#F7F6F4]">
         <Navbar />
         <div className={`${NAVBAR_HEIGHT} flex items-center justify-center h-64`}>
-          <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+          <div className="w-8 h-8 border-4 border-[#E5E2DC] border-t-[#1A1917] rounded-full animate-spin" />
         </div>
       </div>
     );
@@ -130,10 +130,10 @@ export default function ProjectBoard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-[#F7F6F4]">
         <Navbar />
         <div className={`${NAVBAR_HEIGHT} flex items-center justify-center h-64`}>
-          <p className="text-red-500">{error}</p>
+          <p className="text-[#7F1D1D]">{error}</p>
         </div>
       </div>
     );
@@ -144,7 +144,7 @@ export default function ProjectBoard() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#F7F6F4]">
       <Navbar />
       <div className={NAVBAR_HEIGHT}>
         <ProjectHeader
@@ -177,14 +177,14 @@ export default function ProjectBoard() {
           {/* LIST VIEW */}
           {viewMode === 'list' && (
             <div>
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="bg-white border border-[#E5E2DC] rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-[#F0EFEC] border-b border-[#E5E2DC]">
                     <tr>
                       {['Task Name', 'Status', 'Priority', 'Assignee', 'Due Date', 'Actions'].map((h) => (
                         <th
                           key={h}
-                          className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                          className="px-4 py-3 text-left text-[10px] font-medium tracking-widest uppercase text-[#8A8680]"
                         >
                           {h}
                         </th>
@@ -194,7 +194,7 @@ export default function ProjectBoard() {
                   <tbody>
                     {sortedTasks.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">
+                        <td colSpan={6} className="px-4 py-8 text-center text-sm text-[#8A8680]">
                           No tasks yet. Add one below!
                         </td>
                       </tr>
@@ -205,12 +205,12 @@ export default function ProjectBoard() {
                       return (
                         <tr
                           key={task._id}
-                          className="border-b border-gray-100 hover:bg-gray-50 transition"
+                          className="border-b border-[#E5E2DC]/50 hover:bg-[#F7F6F4] transition-colors"
                         >
                           <td className="px-4 py-3">
                             <button
                               onClick={() => setSelectedTask(task)}
-                              className="font-medium text-gray-800 hover:text-indigo-600 text-sm text-left"
+                              className="font-medium text-[#1A1917] hover:text-[#4B4845] transition-colors text-sm text-left"
                             >
                               {task.title}
                             </button>
@@ -225,35 +225,35 @@ export default function ProjectBoard() {
                             {task.assigneeId ? (
                               <div className="flex items-center gap-2">
                                 <MemberAvatar user={task.assigneeId} size="sm" />
-                                <span className="text-xs text-gray-600">{task.assigneeId.name}</span>
+                                <span className="text-xs text-[#4B4845]">{task.assigneeId.name}</span>
                               </div>
                             ) : (
-                              <span className="text-xs text-gray-400">—</span>
+                              <span className="text-xs text-[#BAB6B0]">—</span>
                             )}
                           </td>
                           <td className="px-4 py-3">
                             {task.dueDate ? (
-                              <span className={`text-xs ${isOverdue ? 'text-red-500' : 'text-gray-500'}`}>
+                              <span className={`text-xs ${isOverdue ? 'text-[#7F1D1D] font-medium' : 'text-[#8A8680]'}`}>
                                 {new Date(task.dueDate).toLocaleDateString('en-US', {
                                   month: 'short', day: 'numeric', year: 'numeric',
                                 })}
                               </span>
                             ) : (
-                              <span className="text-xs text-gray-400">—</span>
+                              <span className="text-xs text-[#BAB6B0]">—</span>
                             )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex gap-2">
                               <button
                                 onClick={() => setSelectedTask(task)}
-                                className="text-gray-400 hover:text-indigo-600 transition"
+                                className="text-[#8A8680] hover:text-[#1A1917] transition-colors"
                                 title="Edit"
                               >
                                 <PencilIcon />
                               </button>
                               <button
                                 onClick={() => handleListDelete(task._id)}
-                                className="text-gray-400 hover:text-red-500 transition"
+                                className="text-[#8A8680] hover:text-[#7F1D1D] transition-colors"
                                 title="Delete"
                               >
                                 <TrashIcon />
@@ -270,7 +270,7 @@ export default function ProjectBoard() {
               {/* Add task row */}
               <button
                 onClick={() => setShowAddModal(true)}
-                className="mt-4 w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition"
+                className="mt-4 w-full py-3 border border-dashed border-[#D4D0C9] rounded-xl text-sm text-[#8A8680] hover:border-[#1A1917] hover:text-[#1A1917] transition-all"
               >
                 + Add Task
               </button>
@@ -326,11 +326,11 @@ function QuickAddModal({ project, onAdd, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-6 w-[480px] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-[#1A1917]/20 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white border border-[#E5E2DC] rounded-xl p-6 w-[480px] shadow-[0_24px_80px_rgba(0,0,0,0.12)]" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Add Task</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+          <h3 className="text-base font-semibold tracking-tight text-[#1A1917]">Add Task</h3>
+          <button onClick={onClose} className="text-[#8A8680] hover:text-[#1A1917] transition-colors text-xl">×</button>
         </div>
         <form onSubmit={handleAdd} className="space-y-4">
           <input
@@ -339,12 +339,12 @@ function QuickAddModal({ project, onAdd, onClose }) {
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Task title..."
             autoFocus
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full bg-[#F7F6F4] border border-[#E5E2DC] rounded-lg px-3 py-2.5 text-sm text-[#1A1917] placeholder:text-[#BAB6B0] focus:border-[#1A1917] focus:outline-none focus:ring-1 focus:ring-[#1A1917] focus:bg-white transition-all"
           />
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full bg-[#F7F6F4] border border-[#E5E2DC] rounded-lg px-3 py-2.5 text-sm text-[#1A1917] focus:border-[#1A1917] focus:outline-none focus:ring-1 focus:ring-[#1A1917] focus:bg-white transition-all"
           >
             <option value="Todo">To Do</option>
             <option value="In Progress">In Progress</option>
@@ -353,7 +353,7 @@ function QuickAddModal({ project, onAdd, onClose }) {
           <button
             type="submit"
             disabled={loading || !title.trim()}
-            className="w-full bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:bg-indigo-400 transition"
+            className="w-full bg-[#1A1917] text-white rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-[#2E2C2A] transition-colors mt-2 disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {loading ? 'Adding...' : 'Add Task'}
           </button>

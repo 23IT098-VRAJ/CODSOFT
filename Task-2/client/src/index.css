@@ -5,8 +5,16 @@
 
 @layer base {
   * { box-sizing: border-box; }
-  html { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
-  body { margin: 0; background-color: #f9fafb; color: #111827; }
+  html {
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    margin: 0;
+    background-color: #F7F6F4;
+    color: #1A1917;
+  }
 }
 
 @layer utilities {
@@ -18,11 +26,10 @@
   }
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-}
-
-/* Kanban horizontal scroll smooth */
-.kanban-scroll {
-  overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #e5e7eb transparent;
+  .kanban-scroll {
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #E5E2DC transparent;
+  }
+  .tabular-nums { font-variant-numeric: tabular-nums; }
 }

@@ -47,33 +47,33 @@ export const ProjectHeader = ({ project, viewMode, onViewChange, onMemberAdded, 
     : null;
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-4">
+    <div className="bg-white border-b border-[#E5E2DC] px-6 py-4">
       {/* Row 1 */}
       <div className="flex justify-between items-start">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span
-              className="w-3 h-3 rounded-full flex-shrink-0"
-              style={{ backgroundColor: project.color || '#6366f1' }}
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ backgroundColor: project.color || '#3730A3' }}
             />
-            <h2 className="text-2xl font-bold text-gray-900 truncate">{project.name}</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-[#1A1917] truncate">{project.name}</h2>
           </div>
           {project.description && (
-            <p className="text-sm text-gray-500 mt-1">{project.description}</p>
+            <p className="text-sm text-[#8A8680] mt-0.5">{project.description}</p>
           )}
         </div>
 
         <div className="flex items-center gap-3 ml-4">
           {/* View toggle */}
-          <div className="flex rounded-lg overflow-hidden border border-gray-200">
+          <div className="inline-flex bg-[#F0EFEC] rounded-lg p-0.5">
             {['kanban', 'list'].map((mode) => (
               <button
                 key={mode}
                 onClick={() => onViewChange(mode)}
-                className={`px-3 py-1.5 text-xs font-medium capitalize transition ${
+                className={`capitalize transition-all ${
                   viewMode === mode
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                    ? 'bg-white text-[#1A1917] shadow-[0_1px_3px_rgba(0,0,0,0.08)] rounded-md px-3 py-1.5 text-xs font-medium'
+                    : 'text-[#8A8680] hover:text-[#4B4845] rounded-md px-3 py-1.5 text-xs font-medium'
                 }`}
               >
                 {mode === 'kanban' ? '⊞ Kanban' : '☰ List'}
@@ -84,7 +84,7 @@ export const ProjectHeader = ({ project, viewMode, onViewChange, onMemberAdded, 
           {/* Settings */}
           <button
             onClick={() => navigate(`/projects/${project._id}/edit`)}
-            className="p-2 text-gray-400 hover:text-indigo-600 transition rounded-lg hover:bg-gray-50"
+            className="text-[#8A8680] hover:text-[#1A1917] transition-colors p-1.5"
             title="Edit project"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -105,7 +105,7 @@ export const ProjectHeader = ({ project, viewMode, onViewChange, onMemberAdded, 
           {/* Add member button */}
           <button
             onClick={() => setShowAddMember(true)}
-            className="w-8 h-8 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-indigo-400 hover:text-indigo-500 transition ml-1"
+            className="w-8 h-8 border border-dashed border-[#D4D0C9] text-[#8A8680] hover:border-[#1A1917] hover:text-[#1A1917] transition-all rounded-full flex items-center justify-center ml-1"
             title="Add member"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -116,7 +116,7 @@ export const ProjectHeader = ({ project, viewMode, onViewChange, onMemberAdded, 
 
         {/* Due date */}
         {formattedDue && (
-          <div className="flex items-center gap-1 text-sm text-gray-500">
+          <div className="flex items-center gap-1 text-xs text-[#8A8680]">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
               <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
@@ -130,7 +130,7 @@ export const ProjectHeader = ({ project, viewMode, onViewChange, onMemberAdded, 
         <select
           defaultValue={project.status}
           onChange={handleStatusChange}
-          className="border border-gray-200 rounded-lg px-3 py-1 text-xs text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          className="border border-[#E5E2DC] rounded-lg px-2.5 py-1 text-xs text-[#4B4845] bg-[#F7F6F4] focus:border-[#1A1917] focus:outline-none focus:ring-1 focus:ring-[#1A1917] transition-all"
         >
           <option value="Active">Active</option>
           <option value="Completed">Completed</option>
@@ -140,26 +140,26 @@ export const ProjectHeader = ({ project, viewMode, onViewChange, onMemberAdded, 
 
       {/* Add Member Modal */}
       {showAddMember && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-96 shadow-2xl">
+        <div className="fixed inset-0 bg-[#1A1917]/20 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white border border-[#E5E2DC] rounded-xl p-6 w-96 shadow-[0_24px_80px_rgba(0,0,0,0.12)]">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Add Member</h3>
+              <h3 className="text-base font-semibold tracking-tight text-[#1A1917]">Add Member</h3>
               <button onClick={() => { setShowAddMember(false); setMemberError(''); setMemberSuccess(''); }}
-                className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+                className="text-[#8A8680] hover:text-[#1A1917] transition-colors text-xl">×</button>
             </div>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter member's email"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-3"
+              className="w-full bg-[#F7F6F4] border border-[#E5E2DC] rounded-lg px-3 py-2.5 text-sm text-[#1A1917] placeholder:text-[#BAB6B0] focus:border-[#1A1917] focus:outline-none focus:ring-1 focus:ring-[#1A1917] focus:bg-white transition-all mb-3"
             />
-            {memberError && <p className="text-sm text-red-600 mb-3">{memberError}</p>}
-            {memberSuccess && <p className="text-sm text-green-600 mb-3">{memberSuccess}</p>}
+            {memberError && <p className="text-[#7F1D1D] text-xs mb-3">{memberError}</p>}
+            {memberSuccess && <p className="text-[#064E3B] text-xs mb-3">{memberSuccess}</p>}
             <button
               onClick={handleAddMember}
               disabled={addingMember || !email}
-              className="w-full bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:bg-indigo-400 transition"
+              className="w-full bg-[#1A1917] text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-[#2E2C2A] transition-colors mt-6 disabled:opacity-40 flex items-center justify-center gap-2"
             >
               {addingMember ? 'Adding...' : 'Add Member'}
             </button>
