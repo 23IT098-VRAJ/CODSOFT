@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: task2-pm-api
+    env: node
+    rootDir: Task-2/server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CLIENT_URL
+        sync: false
+      - key: PORT
+        value: 10000

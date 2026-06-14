@@ -1,2 +1,11 @@
-Task1_execution.md
-Task2_execution.md
+# Environment files
+Task-1/server/.env
+Task-1/client/.env
+Task-2/server/.env
+Task-2/client/.env
+
+# Node modules
+**/node_modules/
+
+# Build output
+**/dist/
