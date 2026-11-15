@@ -4,32 +4,101 @@
 @tailwind utilities;
 
 @layer base {
-  * { box-sizing: border-box; }
   html {
     font-family: 'Inter', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
   body {
-    margin: 0;
-    background-color: #F7F6F4;
-    color: #1A1917;
+    @apply m-0 bg-paper text-ink;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-ink ring-offset-2 ring-offset-paper;
+  }
+}
+
+/* The design system: every screen builds on these few classes. */
+@layer components {
+  .page {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+  }
+
+  .card {
+    @apply bg-surface border border-line rounded-xl shadow-card;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
+      transition active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none select-none;
+  }
+  .btn-primary {
+    @apply btn bg-ink text-white hover:bg-[#2E2C2A];
+  }
+  .btn-outline {
+    @apply btn border border-line-strong bg-surface text-ink hover:border-ink;
+  }
+  .btn-ghost {
+    @apply btn text-ink-soft hover:bg-sunken hover:text-ink;
+  }
+  .btn-danger {
+    @apply btn border border-red-200 bg-danger-soft text-danger hover:bg-red-100;
+  }
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-lg p-2 text-muted hover:bg-sunken hover:text-ink
+      transition active:scale-[0.98];
+  }
+
+  .input {
+    @apply w-full bg-paper border border-line rounded-lg px-3 py-2.5 text-sm text-ink placeholder:text-faint
+      outline-none focus:border-ink focus:ring-1 focus:ring-ink focus:bg-surface;
+  }
+  .input-error {
+    @apply border-danger focus:border-danger focus:ring-danger;
+  }
+  .label {
+    @apply block text-[11px] font-medium tracking-widest uppercase text-muted mb-1.5;
+  }
+  .eyebrow {
+    @apply text-[10px] font-medium tracking-widest uppercase text-muted;
+  }
+  .field-error {
+    @apply text-xs text-danger mt-1;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium tracking-wide uppercase whitespace-nowrap;
+  }
+
+  /* Loading placeholder with a band of light sweeping across it. */
+  .skeleton {
+    @apply rounded-lg animate-skeleton-sweep;
+    background-image: linear-gradient(90deg, #ecEAE7 25%, #f5f4f1 50%, #ecEAE7 75%);
+    background-size: 200% 100%;
   }
 }
 
 @layer utilities {
-  .line-clamp-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
-  .scrollbar-hide::-webkit-scrollbar { display: none; }
-  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-  .kanban-scroll {
-    overflow-x: auto;
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scroll-thin {
     scrollbar-width: thin;
-    scrollbar-color: #E5E2DC transparent;
+    scrollbar-color: #e5e2dc transparent;
   }
-  .tabular-nums { font-variant-numeric: tabular-nums; }
+}
+
+/* People who ask their system for less motion get a still interface. (The
+   JS-driven animations honour the same setting via <MotionConfig>.) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

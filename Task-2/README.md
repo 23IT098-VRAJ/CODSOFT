@@ -1,464 +1,356 @@
-<h1 align="center">
-  📋 TaskFlow — Project Management Tool
-</h1>
+<h1 align="center">TaskFlow — Project Management Tool</h1>
 
 <p align="center">
-  <strong>A production-ready, full-stack Kanban project management application.</strong><br/>
-  Drag-and-drop task boards · Team collaboration · Progress tracking · Priority system
+  <strong>A full-stack Kanban project management app — React, Express and MongoDB.</strong><br/>
+  Drag-and-drop boards · team membership · comments · activity feed · project statistics
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js"/>
-  <img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React"/>
-  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript"/>
-  <img src="https://img.shields.io/badge/MongoDB-Atlas-47A248?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB"/>
-  <img src="https://img.shields.io/badge/Vite-8-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite"/>
+  <img src="https://img.shields.io/badge/Express-5-000000?style=for-the-badge&logo=express&logoColor=white" alt="Express"/>
+  <img src="https://img.shields.io/badge/MongoDB-Mongoose%209-47A248?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB"/>
+  <img src="https://img.shields.io/badge/React%2019-Vite-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React"/>
   <img src="https://img.shields.io/badge/TailwindCSS-3-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind"/>
-  <img src="https://img.shields.io/badge/Deployed-Render-46E3B7?style=for-the-badge&logo=render&logoColor=black" alt="Render"/>
+  <img src="https://img.shields.io/badge/Tests-Jest%20%2B%20Supertest-C21325?style=for-the-badge&logo=jest&logoColor=white" alt="Jest"/>
 </p>
 
----
-
-## 📑 Table of Contents
-
-- [Overview](#-overview)
-- [Live Demo](#-live-demo)
-- [Features](#-features)
-- [Tech Stack](#-tech-stack)
-- [Project Structure](#-project-structure)
-- [Database Schema](#-database-schema)
-- [API Reference](#-api-reference)
-- [Environment Variables](#-environment-variables)
-- [Local Development](#-local-development)
-- [Deployment](#-deployment)
-- [Security](#-security)
+Built for the **CodSoft Web Development Internship — Task 2**.
 
 ---
 
-## 🌟 Overview
+## Contents
 
-**TaskFlow** (CodSoft Internship — Task 2) is a collaborative project management tool inspired by tools like Trello and Linear. It allows teams to organize work into projects, manage tasks on an interactive **Kanban board** with drag-and-drop support, track progress visually, and collaborate with team members — all secured behind JWT authentication.
-
-Key engineering highlights:
-- **Drag-and-drop** powered by `@hello-pangea/dnd` with server-persisted task order
-- **Membership-based access control** — only project members can view or modify project data
-- **Optimistic UI updates** for a smooth, responsive feel
-- **Compound index** on `{ projectId, status, order }` for fast Kanban queries
-
----
-
-## 🚀 Live Demo
-
-> **Frontend (Vercel):** _Add your Vercel URL here_
->
-> **Backend API (Render):** _Add your Render URL here_
+- [Try it in one minute](#try-it-in-one-minute)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Design decisions worth explaining](#design-decisions-worth-explaining)
+- [Project structure](#project-structure)
+- [Data model](#data-model)
+- [API reference](#api-reference)
+- [Running against your own database](#running-against-your-own-database)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Security](#security)
+- [Known limitations](#known-limitations)
 
 ---
 
-## ✨ Features
+## Try it in one minute
 
-### 👤 Authentication
-| Feature | Details |
+No database or configuration needed. The demo starts the API on a throw-away **in-memory MongoDB** with a three-person team, three projects, tasks, comments and an activity history.
+
+```bash
+# Terminal 1 — API on http://localhost:5001
+cd Task-2/server
+npm install
+npm run demo
+
+# Terminal 2 — web app on http://localhost:5174
+cd Task-2/client
+npm install
+npm run dev
+```
+
+`npm run demo` prints the three demo logins when it starts. Everything is discarded when you stop it. (The first run downloads a MongoDB binary, so it takes a little longer.)
+
+---
+
+## Features
+
+| Area | What it does |
 |---|---|
-| **Register** | Name, email, password (min 6 chars); auto-assigned avatar color from a curated palette |
-| **Login** | JWT issued on success; stored in `localStorage` |
-| **Protected Routes** | `ProtectedRoute` component redirects unauthenticated users to `/login` |
-| **Auto-redirect** | Root `/` redirects authenticated users to `/dashboard`, guests to `/login` |
+| **Accounts** | Register and log in; rename yourself and change your password on the profile page |
+| **Dashboard** | A personal summary — my open tasks, what is overdue, what is due this week, recent team activity — and a searchable, filterable grid of projects with live progress |
+| **My tasks** | Everything assigned to me across all projects, split into Open, Overdue and Done |
+| **Kanban board** | To Do · In Progress · Done with drag-and-drop between and within columns (mouse, touch or keyboard); positions are kept gap-free on screen and on the server |
+| **List view** | The same tasks as a table, sortable by any column |
+| **Overview** | A project report: completion ring, tasks by status, open tasks by priority, overdue / unassigned / done-this-week figures, each member's workload, and the activity feed |
+| **Task details** | A side panel to edit title, description, status, priority, assignee and due date, with a comment thread underneath; it has its own link (`?task=…`) |
+| **Filters** | Search tasks and filter by priority, assignee and overdue |
+| **Team** | Invite a registered user by email, remove a member (owner) or leave a project (member); their tasks become unassigned |
+| **Project settings** | Name, description, colour, status and due date; the owner can delete the project |
+| **Activity feed** | Who created, moved, assigned, completed or commented on what, per project and across projects |
 
-### 📊 Dashboard
-| Feature | Details |
-|---|---|
-| **Project Cards** | Each project card shows name, description, color tag, status badge, due date, member avatars |
-| **Progress Bar** | Live task completion bar — `done / total` tasks per project |
-| **Status Filter** | Visual status: Active / On Hold / Completed |
-| **Quick Actions** | Create new project; navigate directly to any board |
-
-### 🗂️ Project Board
-| Feature | Details |
-|---|---|
-| **Kanban View** | Three columns: **To Do · In Progress · Done** |
-| **Drag & Drop** | Drag tasks between columns or reorder within a column; persisted to backend via `PATCH /api/tasks/:id/move` |
-| **List View** | Sortable table view of all tasks with priority, assignee, and due date |
-| **Task Detail Modal** | Inline editing of title, description, status, priority, assignee, and due date |
-| **Task Creation** | Quick-add card at the top of each column |
-| **Priority Badges** | Color-coded: 🔴 High · 🟡 Medium · 🟢 Low |
-
-### 👥 Team Management
-| Feature | Details |
-|---|---|
-| **Invite by Email** | Add a registered user to a project by their email address |
-| **Member Avatars** | Color-coded avatar initials generated from `avatarColor` field |
-| **Owner Controls** | Only the project owner can delete a project; all members can edit tasks |
-| **Auto-membership** | Project creator is automatically added to the `members` array on creation |
-
-### ⚙️ Project Settings
-- Edit project name, description, color, status, and due date
-- Delete project (owner only) — cascades to delete all associated tasks
+Throughout: loading skeletons, empty and error states with retry, toast messages, confirmation dialogs for destructive actions, and motion that follows one set of rules (see [improvements.md](improvements.md)).
 
 ---
 
-## 🛠️ Tech Stack
+## Architecture
 
-### Backend
-| Package | Version | Purpose |
-|---|---|---|
-| `express` | latest | HTTP server & routing |
-| `mongoose` | latest | MongoDB ODM |
-| `bcryptjs` | latest | Password hashing (salt rounds: 10) |
-| `jsonwebtoken` | latest | JWT authentication |
-| `cors` | latest | Cross-origin resource sharing with multi-origin support |
-| `dotenv` | latest | Environment variable loading |
-| `nodemon` | latest | Dev auto-reload |
+```
+┌────────────────────────┐   HTTPS / JSON    ┌──────────────────────────────────────────────┐
+│  React SPA (Vite)      │ ────────────────► │  Express 5 API                                │
+│                        │                   │                                               │
+│  pages ─► AuthContext  │ ◄──────────────── │  routes ─► validate ─► protect ─► access      │
+│  lib/axios             │  data, or         │        ─► controllers ─► services ─► models   │
+│  @hello-pangea/dnd     │  { message,       │                                               │
+│                        │    errors[] }     │  every error ─► central error handler         │
+└────────────────────────┘                   └──────────────────────┬───────────────────────┘
+                                                                     │
+                                                              ┌──────▼──────┐
+                                                              │   MongoDB   │
+                                                              └─────────────┘
+```
 
-### Frontend
-| Package | Version | Purpose |
-|---|---|---|
-| `react` | 18 | UI framework |
-| `react-router-dom` | ^7.17.0 | Client-side routing |
-| `@hello-pangea/dnd` | ^18.0.1 | Accessible drag-and-drop |
-| `axios` | ^1.17.0 | HTTP client |
-| `typescript` | ~6.0.2 | Static typing |
-| `vite` | ^8.0.12 | Build tool & dev server |
-| `tailwindcss` | ^3.4.19 | Utility-first CSS |
+**Request lifecycle on the server**
+
+1. `helmet`, CORS allow-list, JSON body parser (100 kB limit), rate limiter
+2. The route's **zod schema** validates and normalises `body`, `query` and `params`; unknown keys are dropped
+3. `protect` verifies the JWT and loads the user from the database
+4. The **access middleware** loads the project (or the task and its project) and checks that the user is a member
+5. The **controller** does the work, using a **service** for board ordering
+6. Anything thrown is turned into one consistent JSON shape by the **central error handler**
 
 ---
 
-## 📁 Project Structure
+## Design decisions worth explaining
+
+**1. Membership is checked in one place.**
+`middleware/access.js` loads the project for every project and task route and refuses anyone who is not a member. Controllers receive `req.project` and `req.task` already authorised, so no controller can forget the check.
+
+**2. A column's order is always 0, 1, 2 … with no gaps or duplicates.**
+Dropping a task at position 1 used to set *its* order to 1 and leave the task already at 1 untouched, so the two tied and the column's order became arbitrary. `services/taskOrder.js` now inserts the task at the drop position, shifts the tasks after it, and closes the gap in the column it left — in a single bulk write. Deleting a task or changing its status from the edit form keeps the same rule.
+
+**3. A task can only be assigned to a project member.**
+Assigning to anyone else is rejected. When a member is removed or leaves, their tasks stay in the project and become unassigned.
+
+**4. The client cannot set what it should not.**
+Validation drops unknown fields, so a request cannot change a project's `ownerId` or `members`, or a task's `projectId` or `createdBy`, through an update.
+
+**5. Dashboard counts come from one aggregation.**
+The project list used to run two count queries per project. It now runs one `$group` over all of the user's projects, and adds an overdue count.
+
+**6. The activity feed can never break a request.**
+Writing a feed entry is wrapped so that a failure is logged and ignored — the task still moves. Each entry stores a small snapshot (task title, from/to status), so it still reads correctly after the task is deleted.
+
+**7. The app is exported, not just started.**
+`app.js` builds the Express app; `server.js` listens only when run directly. Tests and serverless platforms import the app without opening a port, and a database outage returns a clear `503` instead of exiting the process.
+
+**8. A failed login is a `400`, on purpose.**
+`401` would be more conventional, but the web client treats every `401` as "session expired" and reloads the login page, which would wipe the error message before it could be read. The reason is documented at the code and pinned by a test.
+
+---
+
+## Project structure
 
 ```
 Task-2/
-├── client/                        # React (Vite + TypeScript) frontend
-│   ├── .env
-│   ├── index.html
-│   ├── vite.config.js
-│   ├── tsconfig.json
-│   ├── tailwind.config.js
-│   ├── vercel.json                # Client-side SPA routing config
+├── vercel.json                    # Single-project Vercel deploy (API + SPA)
+├── improvements.md                # What changed in the frontend, and the motion audit
+├── client/                        # React (Vite) frontend
 │   └── src/
-│       ├── main.jsx               # App entry point
-│       ├── App.jsx                # Router & AuthProvider wrapper
-│       ├── index.css
-│       ├── style.css
-│       ├── context/
-│       │   └── AuthContext.jsx    # Auth state + login/logout helpers
-│       ├── lib/                   # Axios instance / API helpers
-│       ├── components/            # Reusable UI components
-│       └── pages/
-│           ├── Login.jsx
-│           ├── Register.jsx
-│           ├── Dashboard.jsx      # Project list with progress bars
-│           ├── CreateProject.jsx
-│           ├── EditProject.jsx
-│           └── ProjectBoard.jsx   # Kanban + List views + drag-and-drop
-└── server/                        # Node.js / Express REST API
-    ├── .env
-    ├── server.js                  # App entry point
-    ├── render.yaml                # Render.com deployment config
+│       ├── App.jsx                # Providers, lazy routes, route guard
+│       ├── index.css              # Design system: buttons, inputs, cards, badges
+│       ├── context/AuthContext.jsx
+│       ├── lib/                   # axios (token, session expiry, error helpers), format, motion tokens
+│       ├── components/
+│       │   ├── AppShell.jsx       # Top bar and account menu
+│       │   ├── AuthLayout.jsx     # Sign-in frame with the animated board preview
+│       │   ├── ui.jsx             # Avatar, Badge, Tabs, Modal, Drawer, ConfirmDialog, ProgressRing…
+│       │   ├── motion.jsx         # Reveal, CountUp, IconSwap, PageTransition
+│       │   ├── Toast.jsx, ProjectCard.jsx, ActivityFeed.jsx
+│       │   └── board/             # BoardView, ListView, Overview, TaskDrawer, MembersModal
+│       └── pages/                 # Login, Register, Dashboard, MyTasks, ProjectBoard, ProjectForm, Profile, NotFound
+└── server/
+    ├── server.js                  # Entry: listens when run directly, exports the app otherwise
+    ├── app.js                     # Express app: middleware, routes, error handling
+    ├── render.yaml                # Render deployment config
+    ├── config/
+    │   ├── db.js                  # Cached MongoDB connection
+    │   └── constants.js           # Statuses, priorities, activity types
+    ├── models/                    # User, Project, Task, Comment, Activity
+    ├── validators/schemas.js      # zod schemas for every request
     ├── middleware/
-    │   └── auth.js                # JWT protect middleware
-    ├── models/
-    │   ├── User.js                # Avatar color, bcrypt hooks
-    │   ├── Project.js             # Owner auto-membership pre-save hook
-    │   └── Task.js                # Compound index, updatedAt hook
-    └── routes/
-        ├── auth.js                # Register + Login
-        ├── projects.js            # CRUD + member management
-        └── tasks.js               # CRUD + Kanban move endpoint
+    │   ├── auth.js                # protect, signToken
+    │   ├── access.js              # loadProject, loadTask, requireOwner
+    │   ├── validate.js            # runs a zod schema against the request
+    │   └── error.js               # 404 + central error handler
+    ├── services/taskOrder.js      # Keeps Kanban columns in order
+    ├── controllers/               # auth, project, task (+ comments), dashboard
+    ├── routes/                    # auth, projects, tasks
+    ├── utils/ApiError.js
+    ├── scripts/demo.js            # Zero-setup in-memory demo
+    └── tests/                     # Jest + Supertest integration tests
 ```
 
 ---
 
-## 🗄️ Database Schema
+## Data model
 
-### User
-```js
-{
-  name:        String   (required, trimmed),
-  email:       String   (required, unique, lowercased),
-  password:    String   (bcrypt hashed, min 6 chars),
-  avatarColor: String   (hex color, randomly assigned from palette),
-  createdAt:   Date
-}
-// Hooks:
-// - pre('save'): bcrypt hash if password modified
-// - toJSON: strips password field from all responses
-// - instance method: comparePassword(candidatePassword)
+```
+User ──< Project (owner)            Project >──< User (members)
+Project ──< Task ──< Comment        Project ──< Activity
+Task >── User (assignee)
 ```
 
-### Project
-```js
-{
-  name:        String   (required, trimmed),
-  description: String,
-  color:       String   (hex, default: '#6366f1'),
-  ownerId:     ObjectId → User  (required),
-  members:     [ObjectId → User],
-  status:      "Active" | "Completed" | "On Hold"  (default: "Active"),
-  dueDate:     Date,
-  createdAt:   Date
-}
-// Hooks:
-// - pre('save'): auto-adds ownerId to members array on project creation
-```
+| Collection | Fields |
+|---|---|
+| **User** | `name`, `email` (unique, lower-cased), `password` (bcrypt hash, excluded from queries by default), `avatarColor`, timestamps |
+| **Project** | `name`, `description`, `color`, `ownerId`, `members[]` (always includes the owner), `status` (`Active` \| `Completed` \| `On Hold`), `dueDate`, timestamps |
+| **Task** | `projectId`, `title`, `description`, `status` (`Todo` \| `In Progress` \| `Done`), `priority` (`Low` \| `Medium` \| `High`), `assigneeId`, `dueDate`, `order`, `createdBy`, `completedAt`, timestamps |
+| **Comment** | `taskId`, `projectId`, `authorId`, `body`, timestamps |
+| **Activity** | `projectId`, `actorId`, `type`, `taskId`, `meta`, `createdAt` |
 
-### Task
-```js
-{
-  projectId:  ObjectId → Project  (required),
-  title:      String   (required, trimmed),
-  description: String,
-  status:     "Todo" | "In Progress" | "Done"  (default: "Todo"),
-  priority:   "Low" | "Medium" | "High"        (default: "Medium"),
-  assigneeId: ObjectId → User  (nullable),
-  dueDate:    Date,
-  order:      Number   (position within status column),
-  createdAt:  Date,
-  updatedAt:  Date
-}
-// Hooks:
-// - pre('save'): updates updatedAt on every save
-// Indexes:
-// - Compound: { projectId: 1, status: 1, order: 1 }  → fast Kanban queries
-```
+**Indexes:** unique `User.email` · `Project.members` · `Task (projectId, status, order)` and `(assigneeId, status)` · `Comment.taskId`, `Comment.projectId` · `Activity (projectId, createdAt)`.
 
 ---
 
-## 📡 API Reference
+## API reference
 
-All routes are prefixed with `/api`. All protected routes require the header:
-```
-Authorization: Bearer <jwt_token>
-```
+Base path `/api`. Every route except register, login and health needs `Authorization: Bearer <token>`.
+Errors look like `{ "message": "…", "errors": [{ "field": "…", "message": "…" }] }` (`errors` only for validation failures).
+
+👥 project member · 👑 project owner
 
 ### Auth — `/api/auth`
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `POST` | `/register` | ❌ | Create account; returns JWT + user (no password) |
-| `POST` | `/login` | ❌ | Login; returns JWT + user (no password) |
-
-**Register/Login Request Body:**
-```json
-{
-  "name": "Vraj Patel",
-  "email": "vraj@example.com",
-  "password": "secret123"
-}
-```
-
-**Response:**
-```json
-{
-  "token": "eyJhbGci...",
-  "user": { "_id": "...", "name": "Vraj Patel", "email": "vraj@example.com", "avatarColor": "#3730A3" }
-}
-```
+| Method | Path | Description |
+|---|---|---|
+| POST | `/register` | Create an account → `{ token, user }` |
+| POST | `/login` | Log in → `{ token, user }` |
+| GET | `/me` | Current user |
+| PUT | `/me` | Update name |
+| PUT | `/password` | Change password (needs the current one) |
 
 ### Projects — `/api/projects`
-| Method | Endpoint | Auth | Description |
+| Method | Path | | Description |
 |---|---|---|---|
-| `GET` | `/` | 🔐 | Get all projects where user is owner or member (includes `taskStats`) |
-| `POST` | `/` | 🔐 | Create a new project |
-| `GET` | `/:id` | 🔐 Member | Get single project (403 if not a member) |
-| `PUT` | `/:id` | 🔐 Member | Update project fields (partial update supported) |
-| `DELETE` | `/:id` | 🔐 Owner | Delete project + all its tasks |
-| `POST` | `/:id/members` | 🔐 Member | Add a new member by email |
-
-**`GET /api/projects` Response includes `taskStats`:**
-```json
-{
-  "_id": "...",
-  "name": "My Project",
-  "taskStats": { "done": 3, "total": 10 }
-}
-```
-
-**`POST /api/projects` Request Body:**
-```json
-{
-  "name": "My Project",
-  "description": "Optional description",
-  "color": "#6366f1",
-  "status": "Active",
-  "dueDate": "2026-12-31"
-}
-```
-
-**`POST /api/projects/:id/members` Request Body:**
-```json
-{ "email": "teammate@example.com" }
-```
+| GET | `/` | | My projects, each with `taskStats { done, total, overdue }`. Filters: `status`, `q` |
+| POST | `/` | | Create a project; the creator becomes owner and first member |
+| GET | `/:id` | 👥 | One project with its members |
+| PUT | `/:id` | 👥 | Update name, description, colour, status, due date (partial) |
+| DELETE | `/:id` | 👑 | Delete the project and its tasks, comments and activity |
+| POST | `/:id/members` | 👥 | Add a registered user by `{ email }` |
+| DELETE | `/:id/members/:userId` | 👑 / self | Remove a member, or leave the project |
+| GET | `/:id/stats` | 👥 | Project statistics |
+| GET | `/:id/activity` | 👥 | Activity feed, newest first; `limit` (max 100) |
 
 ### Tasks — `/api/tasks`
-| Method | Endpoint | Auth | Description |
+| Method | Path | | Description |
 |---|---|---|---|
-| `GET` | `/:projectId` | 🔐 Member | Get all tasks for a project, sorted by `order` |
-| `POST` | `/` | 🔐 Member | Create a task (auto-assigns `order` as max + 1 in status bucket) |
-| `PUT` | `/:id` | 🔐 Member | Update task fields (partial update) |
-| `DELETE` | `/:id` | 🔐 Member | Delete a task |
-| `PATCH` | `/:id/move` | 🔐 Member | Move task to a new status/order (Kanban drag-drop) |
+| GET | `/mine` | | Tasks assigned to me across all projects; `status`, `overdue` |
+| GET | `/:projectId` | 👥 | A project's tasks in board order. Filters: `status`, `priority`, `assignee` (`me` \| `none` \| id), `overdue=true`, `q` |
+| POST | `/` | 👥 | Create a task: `{ projectId, title, status?, priority?, assigneeId?, dueDate?, description? }` |
+| PUT | `/:id` | 👥 | Edit a task (partial). Changing `status` moves it to the end of the new column |
+| PATCH | `/:id/move` | 👥 | Drag and drop: `{ status, order }` where `order` is the position in the column |
+| DELETE | `/:id` | 👥 | Delete a task and its comments |
+| GET | `/:id/comments` | 👥 | Comments, oldest first |
+| POST | `/:id/comments` | 👥 | Add a comment `{ body }` |
+| DELETE | `/:id/comments/:commentId` | author / 👑 | Delete a comment |
 
-**`POST /api/tasks` Request Body:**
-```json
-{
-  "title": "Design login screen",
-  "projectId": "...",
-  "status": "Todo",
-  "priority": "High",
-  "assigneeId": "...",
-  "dueDate": "2026-08-01",
-  "description": "Include OAuth options"
-}
-```
-
-**`PATCH /api/tasks/:id/move` Request Body:**
-```json
-{ "status": "In Progress", "order": 2 }
-```
-
-### Health Check
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `GET` | `/api/health` | ❌ | Returns `{ status: "ok", timestamp: "..." }` |
-
-> 🔐 = Requires valid JWT of a project member/owner
+### Other
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/dashboard` | My projects by status, my tasks by status, overdue count, tasks due in 7 days, recent activity |
+| GET | `/api/health` | `{ status: "ok" }` — no authentication |
 
 ---
 
-## 🔐 Environment Variables
+## Ports
 
-### Server — `server/.env`
-```env
-MONGO_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/<dbname>?retryWrites=true&w=majority
-JWT_SECRET=your_super_secret_jwt_key_min_32_chars
-PORT=5000
-CLIENT_URL=http://localhost:5173
-# For production, CLIENT_URL can be a comma-separated list:
-# CLIENT_URL=https://your-app.vercel.app,https://custom-domain.com
-```
+Both internship projects use fixed, separate ports, so they can run at the same time:
 
-### Client — `client/.env`
-```env
-VITE_API_URL=http://localhost:5000/api
-```
-> For production, set `VITE_API_URL` to your deployed backend URL (e.g., `https://task2-pm-api.onrender.com/api`).
+| | API | Web app |
+|---|---|---|
+| Task-1 — ShopIndi | `5000` | `5173` |
+| **Task-2 — TaskFlow** | `5001` | `5174` |
+
+If a port is already taken, the server or Vite stops with a message saying so, instead of starting on a different port. To change Task-2's API port, update `PORT` in `server/.env` **and** `API_PORT` in `client/vite.config.js`; to change the web port, update `client/vite.config.js` **and** `CLIENT_URL` in `server/.env`.
 
 ---
 
-## 💻 Local Development
+## Running against your own database
 
-**Prerequisites:** Node.js ≥ 18, npm ≥ 9, a MongoDB Atlas cluster (free M0 tier works).
-
-### 1. Clone & Install Dependencies
+**Prerequisites:** Node.js 18+, a MongoDB connection string (the Atlas free tier works).
 
 ```bash
-# Backend
 cd Task-2/server
 npm install
-cp .env .env.backup   # (optional backup)
-# Edit .env — fill in MONGO_URI and JWT_SECRET
+cp .env.example .env        # then fill in MONGO_URI and JWT_SECRET
+npm run dev                 # http://localhost:5001
 
-# Frontend
 cd ../client
 npm install
-# Edit .env — confirm VITE_API_URL=http://localhost:5000/api
+npm run dev                 # http://localhost:5174
 ```
 
-### 2. Start the Development Servers
+| Server variable | Required | Purpose |
+|---|---|---|
+| `MONGO_URI` | yes | MongoDB connection string |
+| `JWT_SECRET` | yes | Secret used to sign login tokens |
+| `CLIENT_URL` | in production | Comma-separated list of frontends allowed to call the API. Defaults to `http://localhost:5174` |
+| `PORT` | no | Defaults to `5001` |
+| `JWT_EXPIRES_IN` | no | Defaults to `7d` |
 
-Open **two terminals** simultaneously:
-
-```bash
-# Terminal 1 — Backend API (runs on http://localhost:5000)
-cd Task-2/server
-npm run dev
-
-# Terminal 2 — Frontend (runs on http://localhost:5173)
-cd Task-2/client
-npm run dev
-```
-
-### 3. Verify the Backend
-
-Test the health endpoint before opening the app:
-```bash
-curl http://localhost:5000/api/health
-# Expected: {"status":"ok","timestamp":"2026-..."}
-```
-
-### 4. Open the App
-
-Navigate to **http://localhost:5173** — you'll be redirected to `/login`.
-
-### Typical Development Workflow
-
-```
-Register account → Create a project → Add tasks → 
-Drag tasks between columns → Invite a teammate by email
-```
-
----
-
-## 🚀 Deployment
-
-### Backend — Render.com
-
-A `render.yaml` is included in `Task-2/server/` for one-click Render deployment.
-
-**Manual setup:**
-1. Create a new **Web Service** on Render
-2. Connect your GitHub repo
-3. Set **Root Directory** → `Task-2/server`
-4. Set **Build Command** → `npm install`
-5. Set **Start Command** → `npm start`
-6. Add Environment Variables:
-   ```
-   MONGO_URI   = <your Atlas URI>
-   JWT_SECRET  = <your secret>
-   CLIENT_URL  = https://<your-vercel-app>.vercel.app
-   PORT        = 10000
-   ```
-
-### Frontend — Vercel
-
-1. Import your GitHub repo in Vercel
-2. Set **Root Directory** → `Task-2/client`
-3. Set **Build Command** → `npm run build` *(runs `tsc && vite build`)*
-4. Set **Output Directory** → `dist`
-5. Add Environment Variable:
-   ```
-   VITE_API_URL = https://<your-render-app>.onrender.com/api
-   ```
-6. The `client/vercel.json` ensures SPA routing works for client-side navigation.
-
-### Database — MongoDB Atlas
-
-1. Create a free **M0 cluster** at [cloud.mongodb.com](https://cloud.mongodb.com)
-2. Create a database user (username + password)
-3. Whitelist Render's IP or use `0.0.0.0/0` for development
-4. Copy the connection string into `MONGO_URI`
-
----
-
-## 🔒 Security
-
-| Concern | Implementation |
+| Client variable | Purpose |
 |---|---|
-| **Password Storage** | `bcryptjs` with 10 salt rounds via a Mongoose `pre('save')` hook |
-| **Password Exposure** | `toJSON` transform on `UserSchema` strips `password` from all API responses |
-| **Authentication** | Stateless JWT signed with `JWT_SECRET`; verified via `protect` middleware |
-| **Authorization** | Every project/task route calls `verifyMembership()` — ensures the requesting user is an owner or member before proceeding |
-| **Owner-only Actions** | Project deletion is guarded by `project.ownerId === req.user._id` |
-| **CORS** | Explicit `origin` whitelist via `CLIENT_URL` env var; `credentials: true` |
-| **Input Validation** | Required fields enforced at schema level (`required: true`); empty title/projectId returns 400 |
-| **Error Handling** | All async routes wrapped in `try/catch`; errors return structured `{ message }` JSON |
-| **Secrets** | All secrets in `.env` — `.gitignore` excludes `.env` files |
+| `VITE_API_URL` | The API's **origin, without `/api`** — the client adds `/api/...` itself. Leave it empty for local development: Vite proxies `/api` to `localhost:5001`. |
+
+| Server script | Does |
+|---|---|
+| `npm run dev` | API with auto-reload |
+| `npm start` | API (production) |
+| `npm run demo` | API on an in-memory database with sample data |
+| `npm test` | Run the test suite |
 
 ---
 
-## 📄 License
+## Testing
 
-This project was built as part of the **CodSoft Web Development Internship — Task 2**.
+```bash
+cd Task-2/server
+npm test
+```
+
+41 integration tests drive the real Express app through Supertest against an in-memory MongoDB, so they need no setup and never touch a real database. They cover:
+
+- **Auth** — the exact response shape the web client expects, duplicate emails, validation, identical errors for wrong password and unknown email, operator-injection attempts, token handling, profile and password changes
+- **Projects** — creation and auto-membership, the empty due date the web form sends, validation, statistics on the list, access for members / outsiders / owner, protection of `ownerId` and `members`, cascade on delete, adding / removing / leaving, the stats report and the activity feed
+- **Tasks** — creation and ordering, validation, outsiders blocked on every operation, assignee must be a member, the task form exactly as the client sends it, **reordering within a column, moving between columns, clamping, gap closing**, completion timestamps, filters, "my tasks", comments and their permissions, the personal dashboard
 
 ---
 
-<p align="center">Made with ❤️ during CodSoft Internship · 2026</p>
+## Deployment
+
+**Split: Render (API) + Vercel (frontend).**
+
+| Part | Settings |
+|---|---|
+| API | Root `Task-2/server` · build `npm install` · start `npm start` · env `MONGO_URI`, `JWT_SECRET`, `CLIENT_URL=<frontend URL>`. `server/render.yaml` describes this service. |
+| Frontend | Root `Task-2/client` · build `npm run build` · output `dist` · env `VITE_API_URL=<API origin, no /api>` |
+
+**Vercel, single project.** Import the repository with **Root Directory** set to `Task-2`. `vercel.json` builds the client as a static site and runs `server/server.js` as a serverless function behind `/api/*`. Set `MONGO_URI` and `JWT_SECRET`; leave `VITE_API_URL` empty so the frontend calls same-origin `/api`.
+
+**Database.** Create a free MongoDB Atlas cluster, add a database user, allow the host's IP addresses, and copy the connection string into `MONGO_URI`.
+
+---
+
+## Security
+
+| Concern | How it is handled |
+|---|---|
+| Passwords | bcrypt (10 rounds); the hash is never returned by any query unless explicitly selected |
+| Sessions | JWT in the `Authorization` header, 7-day expiry; the user is re-loaded on every request, so a deleted account stops working at once |
+| Authorisation | One access middleware for every project and task route; owner-only actions checked separately |
+| Input validation | zod schema on every body, query string and URL parameter; unknown fields are stripped |
+| NoSQL injection | Schemas require plain strings, so payloads like `{ "email": { "$ne": null } }` are rejected; search text is escaped before use in a regular expression |
+| Brute force | 20 auth attempts per 15 minutes per IP; 1000 requests per 15 minutes for the API overall |
+| Enumeration | Login returns the same error for an unknown email and a wrong password |
+| Headers / payloads | `helmet` security headers; 100 kB JSON body limit; project colour must be a hex value |
+| CORS | Explicit allow-list from `CLIENT_URL` |
+| Error output | Malformed ids and invalid values return `400`, not `500`; internal error details are not sent to clients in production |
+| Secrets | Read from environment variables; `.env` files are git-ignored |
+
+---
+
+## Known limitations
+
+- **Adding a member reveals whether an email is registered.** Inviting by email needs that answer; it is limited to people who are already members of the project.
+- **Two people dragging in the same column at the same instant** can leave a duplicate position. It is corrected by the next move in that column; a transaction would remove the window entirely.
+- **The token is kept in `localStorage`**, readable by any script on the page. An `httpOnly` cookie with CSRF protection would be stronger.
+- **No real-time updates** — another member's changes appear after a refresh.
+- **Rate limiting is in-memory**, so on serverless platforms each instance counts separately.
+- **No email** — no address verification, invitations or password reset.
+
+---
+
+<p align="center">CodSoft Web Development Internship · Task 2</p>

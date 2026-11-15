@@ -1,109 +1,164 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Navbar, { NAVBAR_HEIGHT } from '../components/Navbar';
-import ProjectCard from '../components/ProjectCard';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { AlertTriangle, CalendarClock, CheckCircle2, FolderKanban, ListTodo, Plus, Search } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import api from '../lib/axios';
+import ProjectCard from '../components/ProjectCard';
+import ActivityFeed from '../components/ActivityFeed';
+import { CountUp, Reveal } from '../components/motion';
+import { Badge, EmptyState, ErrorState, Tabs } from '../components/ui';
+import api, { errorMessage } from '../lib/axios';
+import { formatDate, greeting, PROJECT_STATUSES } from '../lib/format';
+import { STAGGER_LIST } from '../lib/motion';
 
-const getGreeting = () => {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
-};
+// Kept between visits, so coming back to the dashboard shows it at once and
+// refreshes quietly instead of flashing skeletons again. It remembers whose
+// data it holds, so one account never sees another account's dashboard.
+let cache = null;
 
-const SkeletonCard = () => (
-  <div className="animate-pulse bg-[#ECEAE7] rounded-xl h-48 border border-[#E5E2DC]" />
-);
+function Stat({ icon: Icon, label, value, tone = 'text-ink', to, index }) {
+  const body = (
+    <>
+      <div className="flex items-center justify-between">
+        <p className="eyebrow">{label}</p>
+        <Icon className={`w-4 h-4 ${tone === 'text-ink' ? 'text-muted' : tone}`} />
+      </div>
+      <p className={`text-3xl font-light tabular-nums mt-2 ${tone}`}><CountUp end={value} /></p>
+    </>
+  );
+  return (
+    <Reveal delay={index * STAGGER_LIST}>
+      {to ? <Link to={to} className="card block p-5 hover:shadow-lift hover:border-line-strong transition-shadow">{body}</Link> : <div className="card p-5">{body}</div>}
+    </Reveal>
+  );
+}
 
 export default function Dashboard() {
-  const navigate = useNavigate();
   const { user } = useAuth();
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(() => (cache?.userId === user?._id ? cache : null));
+  const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('All');
 
-  useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        const res = await api.get('/api/projects');
-        setProjects(res.data);
-      } catch (err) {
-        console.error('Failed to fetch projects:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProjects();
-  }, []);
+  const load = () => {
+    setError('');
+    Promise.all([api.get('/api/projects'), api.get('/api/dashboard')])
+      .then(([projects, summary]) => {
+        cache = { userId: user?._id, projects: projects.data, summary: summary.data };
+        setData(cache);
+      })
+      .catch((err) => { if (cache?.userId !== user?._id) setError(errorMessage(err)); });
+  };
+  useEffect(load, []);
 
-  const activeCount = projects.filter((p) => p.status === 'Active').length;
-  const completedCount = projects.filter((p) => p.status === 'Completed').length;
+  const projects = data?.projects || [];
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return projects.filter((p) => (status === 'All' || p.status === status) && (!q || p.name.toLowerCase().includes(q)));
+  }, [projects, query, status]);
+
+  const tabs = [{ value: 'All', label: 'All', count: projects.length }].concat(
+    PROJECT_STATUSES.map((s) => ({ value: s, label: s, count: projects.filter((p) => p.status === s).length }))
+  );
+
+  if (error) return <div className="page py-10"><ErrorState message={error} onRetry={load} /></div>;
+
+  const summary = data?.summary;
+  const loading = !data;
 
   return (
-    <div className="min-h-screen bg-[#F7F6F4]">
-      <Navbar />
-      <main className={NAVBAR_HEIGHT}>
-        {/* Header */}
-        <div className="px-6 py-8 border-b border-[#E5E2DC] bg-white">
-          <h1 className="text-2xl font-semibold tracking-tight text-[#1A1917]">
-            {getGreeting()}, {user?.name?.split(' ')[0]}!
-          </h1>
-          <p className="text-sm text-[#8A8680] mt-1">
-            You have {activeCount} active project{activeCount !== 1 ? 's' : ''}
+    <div>
+      {/* Greeting and personal summary */}
+      <section className="bg-surface border-b border-line">
+        <div className="page py-8">
+          <h1 className="text-2xl font-semibold tracking-tight">{greeting()}, {user?.name?.split(' ')[0]}</h1>
+          <p className="text-sm text-muted mt-1">
+            {loading ? 'Loading your workspace…'
+              : summary.myTasks.open
+                ? `You have ${summary.myTasks.open} open task${summary.myTasks.open === 1 ? '' : 's'}${summary.myTasks.overdue ? `, ${summary.myTasks.overdue} overdue` : ''}.`
+                : 'Nothing is waiting on you right now.'}
           </p>
 
-          {/* Quick stats */}
-          <div className="flex gap-4 mt-6">
-            {[
-              { label: 'Total Projects', value: projects.length },
-              { label: 'Active', value: activeCount },
-              { label: 'Completed', value: completedCount },
-            ].map((stat) => (
-              <div key={stat.label} className="bg-white border border-[#E5E2DC] rounded-xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-                <p className="text-2xl font-light tabular-nums text-[#1A1917]">{stat.value}</p>
-                <p className="text-[10px] font-medium tracking-widest uppercase text-[#8A8680] mt-0.5">{stat.label}</p>
-              </div>
-            ))}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+            {loading ? [0, 1, 2, 3].map((i) => <div key={i} className="h-24 skeleton" />) : (
+              <>
+                <Stat index={0} icon={FolderKanban} label="Projects" value={summary.projects.total} />
+                <Stat index={1} icon={ListTodo} label="My open tasks" value={summary.myTasks.open} to="/my-tasks" />
+                <Stat index={2} icon={AlertTriangle} label="Overdue" value={summary.myTasks.overdue} tone={summary.myTasks.overdue ? 'text-danger' : 'text-ink'} to="/my-tasks" />
+                <Stat index={3} icon={CheckCircle2} label="Completed by me" value={summary.myTasks.byStatus.Done} />
+              </>
+            )}
           </div>
         </div>
+      </section>
 
-        {/* Projects grid */}
-        <div className="px-6 py-6">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-base font-semibold tracking-tight text-[#1A1917]">Your Projects</h2>
-            <button
-              onClick={() => navigate('/projects/new')}
-              className="border border-[#1A1917] text-[#1A1917] text-sm font-medium px-4 py-1.5 rounded-lg hover:bg-[#1A1917] hover:text-white transition-all duration-150"
-            >
-              + New Project
-            </button>
+      <div className="page py-8 grid lg:grid-cols-[1fr_20rem] gap-8">
+        {/* Projects */}
+        <section className="min-w-0">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="text-base font-semibold tracking-tight">Your projects</h2>
+            <Link to="/projects/new" className="btn-primary !py-1.5"><Plus className="w-4 h-4" /> New project</Link>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 mb-5">
+            <Tabs tabs={tabs} value={status} onChange={setStatus} />
+            <div className="relative flex-1 min-w-[12rem]">
+              <Search className="w-4 h-4 text-faint absolute left-3 top-1/2 -translate-y-1/2" />
+              <input type="search" className="input !py-2 pl-9" placeholder="Search projects" aria-label="Search projects"
+                value={query} onChange={(e) => setQuery(e.target.value)} />
+            </div>
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
-            </div>
+            <div className="grid sm:grid-cols-2 gap-5">{[0, 1, 2, 3].map((i) => <div key={i} className="h-52 skeleton" />)}</div>
           ) : projects.length === 0 ? (
-            <div className="bg-white border border-dashed border-[#D4D0C9] rounded-xl h-48 flex flex-col items-center justify-center text-center">
-              <p className="text-4xl mb-2">📋</p>
-              <p className="text-sm font-medium text-[#4B4845]">No projects yet</p>
-              <p className="text-xs text-[#8A8680] mt-1">Get started by creating your first project</p>
-              <button
-                onClick={() => navigate('/projects/new')}
-                className="mt-4 bg-[#1A1917] text-white hover:bg-[#2E2C2A] rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-              >
-                Create your first project
-              </button>
-            </div>
+            <EmptyState icon={FolderKanban} title="No projects yet" message="Create your first project to start organising work."
+              action={<Link to="/projects/new" className="btn-primary">Create a project</Link>} />
+          ) : visible.length === 0 ? (
+            <EmptyState icon={Search} title="No projects match" message="Try a different search or status." />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {projects.map((project) => (
-                <ProjectCard key={project._id} project={project} />
+            <div className="grid sm:grid-cols-2 gap-5">
+              {visible.map((p, i) => (
+                <Reveal key={p._id} delay={Math.min(i, 6) * STAGGER_LIST}><ProjectCard project={p} /></Reveal>
               ))}
             </div>
           )}
-        </div>
-      </main>
+        </section>
+
+        {/* Side column */}
+        <aside className="space-y-6">
+          <Reveal as="section" className="card p-5">
+            <h2 className="text-sm font-semibold tracking-tight flex items-center gap-2 mb-4"><CalendarClock className="w-4 h-4 text-muted" /> Due this week</h2>
+            {loading ? <div className="h-20 skeleton" /> : summary.dueSoon.length === 0 ? (
+              <p className="text-xs text-muted">Nothing due in the next 7 days.</p>
+            ) : (
+              <ul className="space-y-3">
+                {summary.dueSoon.map((t) => (
+                  <li key={t._id}>
+                    <Link to={`/projects/${t.projectId?._id}`} className="group block">
+                      <p className="text-sm text-ink group-hover:underline underline-offset-2 truncate">{t.title}</p>
+                      <p className="text-xs text-muted flex items-center gap-2 mt-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: t.projectId?.color }} />
+                        <span className="truncate">{t.projectId?.name}</span>
+                        <span>· {formatDate(t.dueDate)}</span>
+                        <Badge value={t.priority} className="ml-auto" />
+                      </p>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Reveal>
+
+          <Reveal as="section" className="card p-5">
+            <h2 className="text-sm font-semibold tracking-tight mb-4">Recent activity</h2>
+            {loading ? <div className="h-32 skeleton" /> : summary.recentActivity.length === 0 ? (
+              <p className="text-xs text-muted">Activity from your projects will appear here.</p>
+            ) : (
+              <ActivityFeed items={summary.recentActivity} showProject />
+            )}
+          </Reveal>
+        </aside>
+      </div>
     </div>
   );
 }

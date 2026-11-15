@@ -1,43 +1,58 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import api from '../lib/axios';
 
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true);
+const readStoredUser = () => {
+  try {
+    return localStorage.getItem('task2_token') ? JSON.parse(localStorage.getItem('task2_user')) : null;
+  } catch {
+    return null;
+  }
+};
 
-  useEffect(() => {
-    const storedToken = localStorage.getItem('task2_token');
-    const storedUser = localStorage.getItem('task2_user');
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+export const AuthProvider = ({ children }) => {
+  // Read synchronously, so a refresh never flashes the logged-out screen.
+  const [user, setUser] = useState(readStoredUser);
+
+  const persist = useCallback((nextUser) => {
+    localStorage.setItem('task2_user', JSON.stringify(nextUser));
+    setUser(nextUser);
   }, []);
 
-  const login = (data) => {
-    localStorage.setItem('task2_token', data.token);
-    localStorage.setItem('task2_user', JSON.stringify(data.user));
-    setToken(data.token);
-    setUser(data.user);
-  };
+  const login = useCallback(
+    (data) => {
+      localStorage.setItem('task2_token', data.token);
+      persist(data.user);
+    },
+    [persist]
+  );
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('task2_token');
     localStorage.removeItem('task2_user');
-    setToken(null);
     setUser(null);
-  };
+  }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{ user, token, loading, login, logout, isAuthenticated: !!user }}
-    >
-      {children}
-    </AuthContext.Provider>
+  // On load, confirm the stored session with the server (and pick up a
+  // changed name). A 401 here is handled by the listener below.
+  useEffect(() => {
+    if (!localStorage.getItem('task2_token')) return;
+    api.get('/api/auth/me').then(({ data }) => persist(data.user)).catch(() => {});
+  }, [persist]);
+
+  // The axios interceptor fires this when any request comes back 401.
+  useEffect(() => {
+    window.addEventListener('auth:expired', logout);
+    return () => window.removeEventListener('auth:expired', logout);
+  }, [logout]);
+
+  const value = useMemo(
+    () => ({ user, isAuthenticated: Boolean(user), login, logout, updateUser: persist }),
+    [user, login, logout, persist]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

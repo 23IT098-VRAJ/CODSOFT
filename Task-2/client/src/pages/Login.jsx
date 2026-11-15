@@ -1,94 +1,69 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import api from '../lib/axios';
+import AuthLayout from '../components/AuthLayout';
+import { Field, Spinner } from '../components/ui';
+import { IconSwap } from '../components/motion';
+import api, { errorMessage } from '../lib/axios';
+
+export function PasswordInput({ value, onChange, error, autoComplete, placeholder }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <input type={visible ? 'text' : 'password'} value={value} onChange={onChange} autoComplete={autoComplete} placeholder={placeholder}
+        className={`input pr-10 ${error ? 'input-error' : ''}`} />
+      <button type="button" onClick={() => setVisible((v) => !v)} aria-label={visible ? 'Hide password' : 'Show password'}
+        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink">
+        <IconSwap swapKey={visible ? 'hide' : 'show'}>{visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</IconSwap>
+      </button>
+    </div>
+  );
+}
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const from = useLocation().state?.from; // the page that sent the visitor here
+  const { login, isAuthenticated } = useAuth();
 
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  if (isAuthenticated && !loading) return <Navigate to={from || '/dashboard'} replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.email.trim() || !form.password) return setError('Enter your email and password');
     setError('');
     setLoading(true);
     try {
-      const res = await api.post('/api/auth/login', form);
-      login(res.data);
-      navigate('/dashboard');
+      const { data } = await api.post('/api/auth/login', form);
+      login(data);
+      navigate(from || '/dashboard', { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      setError(errorMessage(err, 'Login failed. Please try again.'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F6F4] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <p className="text-lg font-semibold tracking-tight text-[#1A1917] mb-1">TaskFlow</p>
-          <p className="text-sm text-[#8A8680] mb-6">Sign in to your workspace</p>
-        </div>
-
-        {/* Card */}
-        <div className="bg-white border border-[#E5E2DC] rounded-xl p-8 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-xs font-medium tracking-widest uppercase text-[#8A8680] mb-1.5">Email</label>
-              <input
-                type="email"
-                required
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full bg-[#F7F6F4] border border-[#E5E2DC] rounded-lg px-3 py-2.5 text-sm text-[#1A1917] placeholder:text-[#BAB6B0] focus:border-[#1A1917] focus:outline-none focus:ring-1 focus:ring-[#1A1917] focus:bg-white transition-all"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium tracking-widest uppercase text-[#8A8680] mb-1.5">Password</label>
-              <input
-                type="password"
-                required
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full bg-[#F7F6F4] border border-[#E5E2DC] rounded-lg px-3 py-2.5 text-sm text-[#1A1917] placeholder:text-[#BAB6B0] focus:border-[#1A1917] focus:outline-none focus:ring-1 focus:ring-[#1A1917] focus:bg-white transition-all"
-                placeholder="••••••••"
-              />
-            </div>
-
-            {error && (
-              <p className="text-[#7F1D1D] text-xs mt-1">{error}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#1A1917] text-white text-sm font-medium py-2.5 rounded-lg hover:bg-[#2E2C2A] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
-            >
-              {loading && (
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                </svg>
-              )}
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
-          </form>
-
-          <p className="text-center text-sm text-[#8A8680] mt-6">
-            Don&apos;t have an account?{' '}
-            <Link to="/register" className="text-[#1A1917] underline underline-offset-2">
-              Sign up
-            </Link>
-          </p>
-        </div>
-      </div>
-    </div>
+    <AuthLayout title="Welcome back" subtitle="Sign in to your workspace"
+      footer={<>Don&apos;t have an account? <Link to="/register" state={{ from }} className="text-ink underline underline-offset-2">Sign up</Link></>}>
+      <form onSubmit={handleSubmit} noValidate className="space-y-5">
+        {error && <p role="alert" className="bg-danger-soft border border-red-200 text-danger text-sm rounded-lg px-3 py-2">{error}</p>}
+        <Field label="Email">
+          <input type="email" className="input" placeholder="you@example.com" value={form.email} onChange={set('email')} autoComplete="email" />
+        </Field>
+        <Field label="Password">
+          <PasswordInput value={form.password} onChange={set('password')} autoComplete="current-password" placeholder="••••••••" />
+        </Field>
+        <button type="submit" disabled={loading} className="btn-primary w-full !py-2.5">
+          {loading && <Spinner />} {loading ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }

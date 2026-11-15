@@ -1,134 +1,83 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api from '../lib/axios';
+import AuthLayout from '../components/AuthLayout';
+import { Field, Spinner } from '../components/ui';
+import { PasswordInput } from './Login';
+import api, { errorMessage, fieldErrors } from '../lib/axios';
+
+// The same rules as the server — checking here just gives instant feedback.
+const validate = (f) => {
+  const errors = {};
+  if (f.name.trim().length < 2) errors.name = 'Enter your full name';
+  if (!/^\S+@\S+\.\S+$/.test(f.email.trim())) errors.email = 'Enter a valid email address';
+  if (f.password.length < 6) errors.password = 'Password must be at least 6 characters';
+  if (f.confirm !== f.password) errors.confirm = 'Passwords do not match';
+  return errors;
+};
 
 export default function Register() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const from = useLocation().state?.from;
+  const { login, isAuthenticated } = useAuth();
 
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-  });
-  const [error, setError] = useState('');
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const set = (key) => (e) => {
+    setForm((f) => ({ ...f, [key]: e.target.value }));
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
+  };
+
+  if (isAuthenticated && !loading) return <Navigate to={from || '/dashboard'} replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-
-    if (form.password !== form.confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
+    const found = validate(form);
+    setErrors(found);
+    setFormError('');
+    if (Object.keys(found).length) return;
 
     setLoading(true);
     try {
-      const res = await api.post('/api/auth/register', {
-        name: form.name,
-        email: form.email,
-        password: form.password,
-      });
-      login(res.data);
-      navigate('/dashboard');
+      const { data } = await api.post('/api/auth/register', { name: form.name, email: form.email, password: form.password });
+      login(data);
+      navigate(from || '/dashboard', { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+      const fields = fieldErrors(err);
+      if (Object.keys(fields).length) setErrors(fields);
+      else if (err.response?.status === 409) setErrors({ email: errorMessage(err) });
+      else setFormError(errorMessage(err, 'Registration failed. Please try again.')); // e.g. the server is not running
     } finally {
       setLoading(false);
     }
   };
 
+  const cls = (key) => `input ${errors[key] ? 'input-error' : ''}`;
+
   return (
-    <div className="min-h-screen bg-[#F7F6F4] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <p className="text-lg font-semibold tracking-tight text-[#1A1917] mb-1">TaskFlow</p>
-          <p className="text-sm text-[#8A8680] mb-6">Create your account</p>
-        </div>
-
-        {/* Card */}
-        <div className="bg-white border border-[#E5E2DC] rounded-xl p-8 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-xs font-medium tracking-widest uppercase text-[#8A8680] mb-1.5">Full Name</label>
-              <input
-                type="text"
-                required
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full bg-[#F7F6F4] border border-[#E5E2DC] rounded-lg px-3 py-2.5 text-sm text-[#1A1917] placeholder:text-[#BAB6B0] focus:border-[#1A1917] focus:outline-none focus:ring-1 focus:ring-[#1A1917] focus:bg-white transition-all"
-                placeholder="John Doe"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium tracking-widest uppercase text-[#8A8680] mb-1.5">Email</label>
-              <input
-                type="email"
-                required
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full bg-[#F7F6F4] border border-[#E5E2DC] rounded-lg px-3 py-2.5 text-sm text-[#1A1917] placeholder:text-[#BAB6B0] focus:border-[#1A1917] focus:outline-none focus:ring-1 focus:ring-[#1A1917] focus:bg-white transition-all"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium tracking-widest uppercase text-[#8A8680] mb-1.5">Password</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full bg-[#F7F6F4] border border-[#E5E2DC] rounded-lg px-3 py-2.5 text-sm text-[#1A1917] placeholder:text-[#BAB6B0] focus:border-[#1A1917] focus:outline-none focus:ring-1 focus:ring-[#1A1917] focus:bg-white transition-all"
-                placeholder="Minimum 6 characters"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium tracking-widest uppercase text-[#8A8680] mb-1.5">Confirm Password</label>
-              <input
-                type="password"
-                required
-                value={form.confirmPassword}
-                onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-                className="w-full bg-[#F7F6F4] border border-[#E5E2DC] rounded-lg px-3 py-2.5 text-sm text-[#1A1917] placeholder:text-[#BAB6B0] focus:border-[#1A1917] focus:outline-none focus:ring-1 focus:ring-[#1A1917] focus:bg-white transition-all"
-                placeholder="Re-enter your password"
-              />
-            </div>
-
-            {error && (
-              <p className="text-[#7F1D1D] text-xs mt-1">{error}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#1A1917] text-white text-sm font-medium py-2.5 rounded-lg hover:bg-[#2E2C2A] transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
-            >
-              {loading && (
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                </svg>
-              )}
-              {loading ? 'Creating account...' : 'Create Account'}
-            </button>
-          </form>
-
-          <p className="text-center text-sm text-[#8A8680] mt-6">
-            Already have an account?{' '}
-            <Link to="/login" className="text-[#1A1917] underline underline-offset-2">
-              Sign in
-            </Link>
-          </p>
-        </div>
-      </div>
-    </div>
+    <AuthLayout title="Create your account" subtitle="It takes less than a minute"
+      footer={<>Already have an account? <Link to="/login" state={{ from }} className="text-ink underline underline-offset-2">Sign in</Link></>}>
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        {formError && <p role="alert" className="bg-danger-soft border border-red-200 text-danger text-sm rounded-lg px-3 py-2">{formError}</p>}
+        <Field label="Full name" error={errors.name}>
+          <input className={cls('name')} value={form.name} onChange={set('name')} autoComplete="name" />
+        </Field>
+        <Field label="Email" error={errors.email}>
+          <input type="email" className={cls('email')} placeholder="you@example.com" value={form.email} onChange={set('email')} autoComplete="email" />
+        </Field>
+        <Field label="Password" error={errors.password} hint="At least 6 characters">
+          <PasswordInput value={form.password} onChange={set('password')} error={errors.password} autoComplete="new-password" />
+        </Field>
+        <Field label="Confirm password" error={errors.confirm}>
+          <PasswordInput value={form.confirm} onChange={set('confirm')} error={errors.confirm} autoComplete="new-password" />
+        </Field>
+        <button type="submit" disabled={loading} className="btn-primary w-full !py-2.5">
+          {loading && <Spinner />} {loading ? 'Creating account…' : 'Create account'}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }

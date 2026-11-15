@@ -1,364 +1,250 @@
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { DragDropContext } from '@hello-pangea/dnd';
-import Navbar, { NAVBAR_HEIGHT } from '../components/Navbar';
-import ProjectHeader from '../components/ProjectHeader';
-import KanbanColumn from '../components/KanbanColumn';
-import TaskModal from '../components/TaskModal';
-import MemberAvatar from '../components/MemberAvatar';
-import StatusBadge from '../components/StatusBadge';
-import PriorityBadge from '../components/PriorityBadge';
-import api from '../lib/axios';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { AnimatePresence, m } from 'motion/react';
+import { BarChart3, CalendarDays, FolderX, KanbanSquare, List, Search, Settings, UserPlus, X } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/Toast';
+import BoardView from '../components/board/BoardView';
+import ListView from '../components/board/ListView';
+import Overview from '../components/board/Overview';
+import TaskDrawer from '../components/board/TaskDrawer';
+import MembersModal from '../components/board/MembersModal';
+import { AvatarStack, EmptyState, ErrorState, PageLoader, Tabs } from '../components/ui';
+import api, { errorMessage } from '../lib/axios';
+import { formatDate, isOverdue, PRIORITIES, PROJECT_STATUSES, TASK_STATUSES } from '../lib/format';
+import { DUR, EASE_IN_OUT } from '../lib/motion';
 
-const COLUMNS = [
-  { id: 'Todo', label: 'To Do' },
-  { id: 'In Progress', label: 'In Progress' },
-  { id: 'Done', label: 'Done' },
+const VIEWS = [
+  { value: 'board', label: 'Board', icon: KanbanSquare },
+  { value: 'list', label: 'List', icon: List },
+  { value: 'overview', label: 'Overview', icon: BarChart3 },
 ];
+const NO_FILTERS = { q: '', priority: '', assignee: '', overdue: false };
 
-const STATUS_ORDER = { 'Todo': 0, 'In Progress': 1, 'Done': 2 };
+const byOrder = (a, b) => a.order - b.order;
 
-// Pencil SVG
-const PencilIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-  </svg>
-);
+// Move a task to (status, index) and re-number the columns it touched —
+// the same rule the server applies, so the screen and the database agree
+// without waiting for a refetch.
+function moveLocally(tasks, taskId, toStatus, toIndex) {
+  const task = tasks.find((t) => t._id === taskId);
+  const fromStatus = task.status;
+  const rest = tasks.filter((t) => t._id !== taskId);
 
-// Trash SVG
-const TrashIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <polyline points="3 6 5 6 21 6"/>
-    <path d="M19 6l-1 14H6L5 6"/>
-    <path d="M10 11v6"/><path d="M14 11v6"/>
-    <path d="M9 6V4h6v2"/>
-  </svg>
-);
+  const destination = rest.filter((t) => t.status === toStatus).sort(byOrder);
+  destination.splice(Math.min(toIndex, destination.length), 0, { ...task, status: toStatus });
+  const renumbered = new Map(destination.map((t, i) => [t._id, { ...t, order: i }]));
+
+  if (fromStatus !== toStatus) {
+    rest.filter((t) => t.status === fromStatus).sort(byOrder).forEach((t, i) => renumbered.set(t._id, { ...t, order: i }));
+  }
+  return [...rest.filter((t) => !renumbered.has(t._id)), ...renumbered.values()];
+}
 
 export default function ProjectBoard() {
   const { id } = useParams();
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const [params, setParams] = useSearchParams();
+
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [state, setState] = useState('loading'); // loading | ready | notfound | error
   const [error, setError] = useState('');
-  const [viewMode, setViewMode] = useState('kanban');
-  const [selectedTask, setSelectedTask] = useState(null);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [filters, setFilters] = useState(NO_FILTERS);
+  const [membersOpen, setMembersOpen] = useState(false);
+
+  // The view and the open task live in the URL, so a link to a task works
+  // and the back button closes the drawer.
+  const view = VIEWS.some((v) => v.value === params.get('view')) ? params.get('view') : 'board';
+  const openTaskId = params.get('task');
+  const setParam = (key, value) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setParams(next, { replace: key === 'view' });
+  };
+
+  const loadTasks = useCallback(() => api.get(`/api/tasks/${id}`).then(({ data }) => setTasks(data)), [id]);
+
+  const load = useCallback(() => {
+    setState('loading');
+    Promise.all([api.get(`/api/projects/${id}`), api.get(`/api/tasks/${id}`)])
+      .then(([p, t]) => {
+        setProject(p.data);
+        setTasks(t.data);
+        setState('ready');
+      })
+      .catch((err) => {
+        if ([400, 403, 404].includes(err.response?.status)) return setState('notfound');
+        setError(errorMessage(err));
+        setState('error');
+      });
+  }, [id]);
+  useEffect(load, [load]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [projRes, tasksRes] = await Promise.all([
-          api.get(`/api/projects/${id}`),
-          api.get(`/api/tasks/${id}`),
-        ]);
-        setProject(projRes.data);
-        setTasks(tasksRes.data);
-      } catch (err) {
-        setError('Failed to load project');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [id]);
+    if (project) document.title = `${project.name} · TaskFlow`;
+    return () => { document.title = 'TaskFlow — Project Management Tool'; };
+  }, [project]);
 
-  const handleDragEnd = async ({ draggableId, source, destination }) => {
-    if (!destination) return;
-    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
-
-    // Optimistic update
-    const previousTasks = [...tasks];
-    const movingTask = tasks.find((t) => t._id === draggableId);
-    if (!movingTask) return;
-
-    const updatedTask = { ...movingTask, status: destination.droppableId, order: destination.index };
-    setTasks((prev) =>
-      prev.map((t) => (t._id === draggableId ? updatedTask : t))
+  // ── Filters (applied in the browser; the tasks are already loaded) ───
+  const filtering = Boolean(filters.q || filters.priority || filters.assignee || filters.overdue);
+  const visible = useMemo(() => {
+    const q = filters.q.trim().toLowerCase();
+    return tasks.filter((t) =>
+      (!q || t.title.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q)) &&
+      (!filters.priority || t.priority === filters.priority) &&
+      (!filters.assignee || (filters.assignee === 'none' ? !t.assigneeId : t.assigneeId?._id === filters.assignee)) &&
+      (!filters.overdue || isOverdue(t))
     );
+  }, [tasks, filters]);
 
+  const columns = useMemo(
+    () => Object.fromEntries(TASK_STATUSES.map((s) => [s, visible.filter((t) => t.status === s).sort(byOrder)])),
+    [visible]
+  );
+  const openTask = tasks.find((t) => t._id === openTaskId) || null;
+
+  // ── Actions ──────────────────────────────────────────────────────────
+  const moveTask = async (taskId, status, index) => {
+    const previous = tasks;
+    setTasks(moveLocally(tasks, taskId, status, index)); // optimistic
     try {
-      await api.patch(`/api/tasks/${draggableId}/move`, {
-        status: destination.droppableId,
-        order: destination.index,
-      });
+      await api.patch(`/api/tasks/${taskId}/move`, { status, order: index });
     } catch (err) {
-      setTasks(previousTasks); // Revert on error
+      setTasks(previous);
+      showToast(errorMessage(err, 'Could not move the task'), 'error');
     }
   };
 
-  const handleAddTask = async ({ title, status }) => {
+  const addTask = async ({ title, status }) => {
     try {
-      const res = await api.post('/api/tasks', { title, projectId: id, status });
-      setTasks((prev) => [...prev, res.data]);
+      const { data } = await api.post('/api/tasks', { title, projectId: id, status });
+      setTasks((prev) => [...prev, data]);
     } catch (err) {
-      console.error('Failed to add task:', err);
+      showToast(errorMessage(err, 'Could not add the task'), 'error');
     }
   };
 
-  const handleSaveTask = (updatedTask) => {
-    setTasks((prev) => prev.map((t) => (t._id === updatedTask._id ? updatedTask : t)));
-    setSelectedTask(null);
+  const changeStatus = async (e) => {
+    const status = e.target.value;
+    const previous = project;
+    setProject({ ...project, status });
+    try {
+      await api.put(`/api/projects/${id}`, { status });
+    } catch (err) {
+      setProject(previous);
+      showToast(errorMessage(err), 'error');
+    }
   };
 
-  const handleDeleteTask = (taskId) => {
+  const handleSaved = (saved, statusChanged) => {
+    setTasks((prev) => prev.map((t) => (t._id === saved._id ? saved : t)));
+    if (statusChanged) loadTasks().catch(() => {}); // other tasks were re-numbered on the server
+    setParam('task', null);
+  };
+  const handleDeleted = (taskId) => {
     setTasks((prev) => prev.filter((t) => t._id !== taskId));
-    setSelectedTask(null);
+    setParam('task', null);
+    loadTasks().catch(() => {});
   };
 
-  const handleListDelete = async (taskId) => {
-    if (!window.confirm('Delete this task?')) return;
-    try {
-      await api.delete(`/api/tasks/${taskId}`);
-      setTasks((prev) => prev.filter((t) => t._id !== taskId));
-    } catch (err) {
-      console.error('Failed to delete task:', err);
-    }
-  };
-
-  if (loading) {
+  if (state === 'loading') return <PageLoader />;
+  if (state === 'notfound') {
     return (
-      <div className="min-h-screen bg-[#F7F6F4]">
-        <Navbar />
-        <div className={`${NAVBAR_HEIGHT} flex items-center justify-center h-64`}>
-          <div className="w-8 h-8 border-4 border-[#E5E2DC] border-t-[#1A1917] rounded-full animate-spin" />
-        </div>
+      <div className="page py-16 max-w-xl">
+        <EmptyState icon={FolderX} title="Project not found" message="It may have been deleted, or you are not a member of it."
+          action={<Link to="/dashboard" className="btn-primary">Back to dashboard</Link>} />
       </div>
     );
   }
+  if (state === 'error') return <div className="page py-16 max-w-xl"><ErrorState message={error} onRetry={load} /></div>;
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#F7F6F4]">
-        <Navbar />
-        <div className={`${NAVBAR_HEIGHT} flex items-center justify-center h-64`}>
-          <p className="text-[#7F1D1D]">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  const sortedTasks = [...tasks].sort(
-    (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
-  );
+  const color = project.color || '#6366f1';
+  const done = tasks.filter((t) => t.status === 'Done').length;
+  const pastDue = project.dueDate && project.status !== 'Completed' && new Date(project.dueDate) < new Date();
 
   return (
-    <div className="min-h-screen bg-[#F7F6F4]">
-      <Navbar />
-      <div className={NAVBAR_HEIGHT}>
-        <ProjectHeader
-          project={project}
-          viewMode={viewMode}
-          onViewChange={setViewMode}
-          onMemberAdded={(updatedProject) => setProject(updatedProject)}
-          onStatusChange={(newStatus) => setProject((p) => ({ ...p, status: newStatus }))}
-        />
-
-        <div className="px-6 py-6">
-          {/* KANBAN VIEW */}
-          {viewMode === 'kanban' && (
-            <DragDropContext onDragEnd={handleDragEnd}>
-              <div className="flex gap-6 overflow-x-auto pb-6 kanban-scroll">
-                {COLUMNS.map((col) => (
-                  <KanbanColumn
-                    key={col.id}
-                    column={col}
-                    tasks={tasks.filter((t) => t.status === col.id).sort((a, b) => a.order - b.order)}
-                    project={project}
-                    onTaskClick={(task) => setSelectedTask(task)}
-                    onAddTask={handleAddTask}
-                  />
-                ))}
+    <div>
+      {/* Project header */}
+      <header className="bg-surface border-b border-line">
+        <div className="px-4 sm:px-6 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2.5">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                <h1 className="text-xl font-semibold tracking-tight truncate">{project.name}</h1>
               </div>
-            </DragDropContext>
-          )}
-
-          {/* LIST VIEW */}
-          {viewMode === 'list' && (
-            <div>
-              <div className="bg-white border border-[#E5E2DC] rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-                <table className="w-full">
-                  <thead className="bg-[#F0EFEC] border-b border-[#E5E2DC]">
-                    <tr>
-                      {['Task Name', 'Status', 'Priority', 'Assignee', 'Due Date', 'Actions'].map((h) => (
-                        <th
-                          key={h}
-                          className="px-4 py-3 text-left text-[10px] font-medium tracking-widest uppercase text-[#8A8680]"
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedTasks.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-sm text-[#8A8680]">
-                          No tasks yet. Add one below!
-                        </td>
-                      </tr>
-                    )}
-                    {sortedTasks.map((task) => {
-                      const isOverdue =
-                        task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'Done';
-                      return (
-                        <tr
-                          key={task._id}
-                          className="border-b border-[#E5E2DC]/50 hover:bg-[#F7F6F4] transition-colors"
-                        >
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={() => setSelectedTask(task)}
-                              className="font-medium text-[#1A1917] hover:text-[#4B4845] transition-colors text-sm text-left"
-                            >
-                              {task.title}
-                            </button>
-                          </td>
-                          <td className="px-4 py-3">
-                            <StatusBadge status={task.status} />
-                          </td>
-                          <td className="px-4 py-3">
-                            <PriorityBadge priority={task.priority} />
-                          </td>
-                          <td className="px-4 py-3">
-                            {task.assigneeId ? (
-                              <div className="flex items-center gap-2">
-                                <MemberAvatar user={task.assigneeId} size="sm" />
-                                <span className="text-xs text-[#4B4845]">{task.assigneeId.name}</span>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-[#BAB6B0]">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            {task.dueDate ? (
-                              <span className={`text-xs ${isOverdue ? 'text-[#7F1D1D] font-medium' : 'text-[#8A8680]'}`}>
-                                {new Date(task.dueDate).toLocaleDateString('en-US', {
-                                  month: 'short', day: 'numeric', year: 'numeric',
-                                })}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-[#BAB6B0]">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => setSelectedTask(task)}
-                                className="text-[#8A8680] hover:text-[#1A1917] transition-colors"
-                                title="Edit"
-                              >
-                                <PencilIcon />
-                              </button>
-                              <button
-                                onClick={() => handleListDelete(task._id)}
-                                className="text-[#8A8680] hover:text-[#7F1D1D] transition-colors"
-                                title="Delete"
-                              >
-                                <TrashIcon />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Add task row */}
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="mt-4 w-full py-3 border border-dashed border-[#D4D0C9] rounded-xl text-sm text-[#8A8680] hover:border-[#1A1917] hover:text-[#1A1917] transition-all"
-              >
-                + Add Task
-              </button>
+              {project.description && <p className="text-sm text-muted mt-0.5 line-clamp-1">{project.description}</p>}
             </div>
-          )}
+            <Link to={`/projects/${id}/edit`} className="btn-icon shrink-0" aria-label="Project settings"><Settings className="w-4 h-4" /></Link>
+          </div>
+
+          <div className="flex items-center gap-x-4 gap-y-3 mt-4 flex-wrap">
+            <button onClick={() => setMembersOpen(true)} className="flex items-center gap-2 rounded-lg pr-2 hover:bg-sunken" aria-label="Manage members">
+              <AvatarStack users={project.members} max={5} />
+              <span className="w-6 h-6 rounded-full border border-dashed border-line-strong text-muted flex items-center justify-center"><UserPlus className="w-3 h-3" /></span>
+            </button>
+
+            <select value={project.status} onChange={changeStatus} aria-label="Project status" className="input !w-auto !py-1.5 !text-xs">
+              {PROJECT_STATUSES.map((s) => <option key={s}>{s}</option>)}
+            </select>
+
+            {project.dueDate && (
+              <span className={`text-xs inline-flex items-center gap-1.5 ${pastDue ? 'text-danger' : 'text-muted'}`}>
+                <CalendarDays className="w-3.5 h-3.5" /> Due {formatDate(project.dueDate, true)}
+              </span>
+            )}
+            <span className="text-xs text-muted tabular-nums">{done} / {tasks.length} done</span>
+
+            <Tabs tabs={VIEWS} value={view} onChange={(v) => setParam('view', v === 'board' ? null : v)} className="ml-auto" />
+          </div>
         </div>
+      </header>
+
+      <div className="px-4 sm:px-6 py-5">
+        {/* Filters apply to the board and the list */}
+        {view !== 'overview' && (
+          <div className="flex flex-wrap items-center gap-2.5 mb-5">
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 text-faint absolute left-3 top-1/2 -translate-y-1/2" />
+              <input type="search" className="input !py-1.5 pl-9" placeholder="Search tasks" aria-label="Search tasks"
+                value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} />
+            </div>
+            <select className="input !w-auto !py-1.5" aria-label="Filter by priority" value={filters.priority} onChange={(e) => setFilters((f) => ({ ...f, priority: e.target.value }))}>
+              <option value="">Any priority</option>
+              {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
+            </select>
+            <select className="input !w-auto !py-1.5" aria-label="Filter by assignee" value={filters.assignee} onChange={(e) => setFilters((f) => ({ ...f, assignee: e.target.value }))}>
+              <option value="">Anyone</option>
+              <option value={user._id}>Assigned to me</option>
+              <option value="none">Unassigned</option>
+              {project.members.filter((mbr) => mbr._id !== user._id).map((mbr) => <option key={mbr._id} value={mbr._id}>{mbr.name}</option>)}
+            </select>
+            <label className="inline-flex items-center gap-2 text-sm text-ink-soft cursor-pointer select-none">
+              <input type="checkbox" className="w-4 h-4 accent-[#1A1917]" checked={filters.overdue} onChange={(e) => setFilters((f) => ({ ...f, overdue: e.target.checked }))} />
+              Overdue only
+            </label>
+            {filtering && (
+              <button onClick={() => setFilters(NO_FILTERS)} className="btn-ghost !py-1.5 !px-2.5 !text-xs"><X className="w-3.5 h-3.5" /> Clear · {visible.length} of {tasks.length}</button>
+            )}
+          </div>
+        )}
+
+        {/* Switching views cross-fades; nothing slides. */}
+        <AnimatePresence mode="wait" initial={false}>
+          <m.div key={view} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: DUR.page, ease: EASE_IN_OUT }}>
+            {view === 'board' && <BoardView columns={columns} color={color} onOpen={(t) => setParam('task', t._id)} onAdd={addTask} onMove={moveTask} dragDisabled={filtering} />}
+            {view === 'list' && <ListView tasks={visible} onOpen={(t) => setParam('task', t._id)} />}
+            {view === 'overview' && <Overview projectId={id} color={color} />}
+          </m.div>
+        </AnimatePresence>
       </div>
 
-      {/* Task modal */}
-      {selectedTask && (
-        <TaskModal
-          task={selectedTask}
-          project={project}
-          onClose={() => setSelectedTask(null)}
-          onSave={handleSaveTask}
-          onDelete={handleDeleteTask}
-        />
-      )}
-
-      {/* Quick add modal for list view */}
-      {showAddModal && (
-        <QuickAddModal
-          project={project}
-          onAdd={(task) => {
-            setTasks((prev) => [...prev, task]);
-            setShowAddModal(false);
-          }}
-          onClose={() => setShowAddModal(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-// Quick add modal for list view
-function QuickAddModal({ project, onAdd, onClose }) {
-  const [title, setTitle] = useState('');
-  const [status, setStatus] = useState('Todo');
-  const [loading, setLoading] = useState(false);
-
-  const handleAdd = async (e) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-    setLoading(true);
-    try {
-      const res = await api.post('/api/tasks', { title, projectId: project._id, status });
-      onAdd(res.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-[#1A1917]/20 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white border border-[#E5E2DC] rounded-xl p-6 w-[480px] shadow-[0_24px_80px_rgba(0,0,0,0.12)]" onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-base font-semibold tracking-tight text-[#1A1917]">Add Task</h3>
-          <button onClick={onClose} className="text-[#8A8680] hover:text-[#1A1917] transition-colors text-xl">×</button>
-        </div>
-        <form onSubmit={handleAdd} className="space-y-4">
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Task title..."
-            autoFocus
-            className="w-full bg-[#F7F6F4] border border-[#E5E2DC] rounded-lg px-3 py-2.5 text-sm text-[#1A1917] placeholder:text-[#BAB6B0] focus:border-[#1A1917] focus:outline-none focus:ring-1 focus:ring-[#1A1917] focus:bg-white transition-all"
-          />
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="w-full bg-[#F7F6F4] border border-[#E5E2DC] rounded-lg px-3 py-2.5 text-sm text-[#1A1917] focus:border-[#1A1917] focus:outline-none focus:ring-1 focus:ring-[#1A1917] focus:bg-white transition-all"
-          >
-            <option value="Todo">To Do</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Done">Done</option>
-          </select>
-          <button
-            type="submit"
-            disabled={loading || !title.trim()}
-            className="w-full bg-[#1A1917] text-white rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-[#2E2C2A] transition-colors mt-2 disabled:opacity-40 flex items-center justify-center gap-2"
-          >
-            {loading ? 'Adding...' : 'Add Task'}
-          </button>
-        </form>
-      </div>
+      <TaskDrawer task={openTask} project={project} onClose={() => setParam('task', null)} onSaved={handleSaved} onDeleted={handleDeleted} />
+      <MembersModal open={membersOpen} onClose={() => setMembersOpen(false)} project={project}
+        onChange={(updated, reloadTasks) => { setProject(updated); if (reloadTasks) loadTasks().catch(() => {}); }} />
     </div>
   );
 }
