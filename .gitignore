@@ -13,3 +13,9 @@ Task-2/client/.env
 Task2_overhaul.md
 Task1_execution.md
 Task2_execution.md
+# Claude Code
+.claude/
+
+
+# Local reference folder
+Ir/

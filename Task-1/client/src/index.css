@@ -1,6 +1,140 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-warmIvory text-bodyInk font-sans antialiased;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-vividGold ring-offset-2 ring-offset-warmIvory;
+  }
+}
+
+/* The design system: every page builds on these few classes. */
+@layer components {
+  .container-page {
+    @apply max-w-7xl mx-auto px-4 sm:px-6;
+  }
+
+  .card {
+    @apply bg-pureWhite border border-parchment rounded-2xl shadow-sm;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold
+      transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed select-none;
+  }
+  .btn-primary {
+    @apply btn bg-vividGold text-midnight hover:brightness-105 active:brightness-95;
+  }
+  .btn-dark {
+    @apply btn bg-midnight text-pureWhite hover:bg-bodyInk;
+  }
+  .btn-outline {
+    @apply btn border border-parchment bg-pureWhite text-bodyInk hover:border-vividGold hover:text-midnight;
+  }
+  .btn-ghost {
+    @apply btn text-smoke hover:text-midnight hover:bg-parchment/50;
+  }
+  .btn-danger {
+    @apply btn border border-red-200 bg-red-50 text-red-700 hover:bg-red-100;
+  }
+
+  .input {
+    @apply w-full bg-pureWhite border border-parchment text-bodyInk rounded-xl px-4 py-2.5 text-sm
+      placeholder:text-gray-400 outline-none transition
+      focus:border-vividGold focus:ring-1 focus:ring-vividGold;
+  }
+  .input-error {
+    @apply border-red-400 focus:border-red-500 focus:ring-red-500;
+  }
+  .label {
+    @apply block text-xs font-semibold uppercase tracking-wider text-smoke mb-1.5;
+  }
+  .field-error {
+    @apply text-xs text-red-600 mt-1;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap;
+  }
+  .badge-gray {
+    @apply badge bg-gray-100 text-gray-700;
+  }
+  .badge-warning {
+    @apply badge bg-amber-100 text-amber-800;
+  }
+  .badge-info {
+    @apply badge bg-blue-100 text-blue-800;
+  }
+  .badge-purple {
+    @apply badge bg-indigo-100 text-indigo-800;
+  }
+  .badge-success {
+    @apply badge bg-emerald-100 text-emerald-800;
+  }
+  .badge-danger {
+    @apply badge bg-red-100 text-red-700;
+  }
+
+  /* Loading placeholder with a band of light sweeping across it. */
+  .skeleton {
+    @apply rounded-lg animate-skeleton-sweep;
+    background-image: linear-gradient(90deg, #ede5d0 25%, #f7f2e6 50%, #ede5d0 75%);
+    background-size: 200% 100%;
+  }
+
+  .section-title {
+    @apply text-2xl font-bold text-midnight tracking-tight;
+  }
+
+  .table-head {
+    @apply text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-smoke bg-warmIvory;
+  }
+  .table-cell {
+    @apply px-4 py-3 align-middle;
+  }
+}
+
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-toast {
+  animation: toast-in 0.2s ease-out;
+}
+
+/* People who ask their system for less motion get a still interface:
+   looping decorations stop and transitions become instant. (The JS-driven
+   animations honour the same setting through <MotionConfig reducedMotion>.) */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

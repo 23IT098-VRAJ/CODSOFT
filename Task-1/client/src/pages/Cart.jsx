@@ -1,100 +1,129 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useCart } from '../context/CartContext';
+import React, { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { AnimatePresence, m } from 'motion/react';
+import { AlertTriangle, ArrowRight, ShoppingCart, Trash2 } from 'lucide-react';
+import CountUp from '../components/motion/CountUp';
+import { T_EXIT, T_STATE } from '../lib/motion';
+import { useCart, maxQtyFor } from '../context/CartContext';
+import { EmptyState, QuantityStepper } from '../components/ui';
+import api from '../lib/axios';
+import { usePageTitle } from '../hooks';
+import { formatINR, FREE_SHIPPING_THRESHOLD, onImgError, shippingFeeFor } from '../lib/format';
+
+// A cart line is "blocked" when it cannot be ordered as it stands.
+export const lineProblem = (item) => {
+  if (item.stock === 0) return 'Out of stock';
+  if (item.stock !== undefined && item.quantity > item.stock) return `Only ${item.stock} available`;
+  return null;
+};
+
+export function OrderSummary({ itemsTotal, children }) {
+  const shipping = shippingFeeFor(itemsTotal);
+  return (
+    <div className="card p-6">
+      <h2 className="font-bold text-lg text-midnight mb-5">Order summary</h2>
+      {children}
+      <dl className="space-y-3 text-sm">
+        <div className="flex justify-between text-smoke"><dt>Subtotal</dt><dd className="text-midnight">{formatINR(itemsTotal)}</dd></div>
+        <div className="flex justify-between text-smoke">
+          <dt>Shipping</dt>
+          <dd className={shipping === 0 ? 'text-emerald-600 font-semibold' : 'text-midnight'}>{shipping === 0 ? 'FREE' : formatINR(shipping)}</dd>
+        </div>
+        {shipping > 0 && (
+          <p className="text-xs text-smoke bg-warmIvory rounded-lg px-3 py-2">
+            Add {formatINR(FREE_SHIPPING_THRESHOLD + 1 - itemsTotal)} more for free shipping
+          </p>
+        )}
+        <div className="border-t border-parchment pt-3 flex justify-between font-bold text-lg text-midnight">
+          {/* the total rolls to its new value whenever the cart changes */}
+          <dt>Total</dt><dd className="tabular-nums"><CountUp start={itemsTotal + shipping} end={itemsTotal + shipping} duration={0.25} format={formatINR} /></dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
 
 export default function Cart() {
-  const { cartItems, removeFromCart, updateQuantity, cartTotal } = useCart();
+  usePageTitle('Cart');
+  const { cartItems, removeFromCart, updateQuantity, cartTotal, syncCart } = useCart();
   const navigate = useNavigate();
-  const shipping = cartTotal > 999 ? 0 : 99;
+
+  // Prices and stock may have changed since items were added — refresh them.
+  useEffect(() => {
+    if (!cartItems.length) return;
+    Promise.all(
+      cartItems.map((i) =>
+        api.get(`/products/${i.productId}`)
+          .then(({ data }) => [i.productId, data])
+          .catch((err) => [i.productId, err.response?.status === 404 ? null : undefined])
+      )
+    ).then((entries) => syncCart(Object.fromEntries(entries)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (cartItems.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-5 text-center px-4">
-        <div className="w-24 h-24 bg-pureWhite border border-parchment rounded-3xl flex items-center justify-center text-4xl">
-          🛒
-        </div>
-        <h2 className="text-2xl font-bold text-midnight">Your cart is empty</h2>
-        <p className="text-smoke max-w-xs">Add some amazing products to get started!</p>
-        <button onClick={() => navigate('/products')} className="bg-vividGold text-midnight font-semibold rounded-full px-5 py-2 hover:opacity-90 transition text-center inline-flex items-center justify-center px-10 py-3 text-sm">
-          Browse Products
-        </button>
+      <div className="container-page py-16 max-w-xl">
+        <EmptyState icon={ShoppingCart} title="Your cart is empty" message="Browse the catalogue and add something you like."
+          action={<Link to="/products" className="btn-primary">Browse products</Link>} />
       </div>
     );
   }
 
+  const blocked = cartItems.some(lineProblem);
+
   return (
-    <div className="max-w-5xl mx-auto px-4 py-10">
+    <div className="container-page py-8 max-w-5xl">
       <h1 className="text-3xl font-bold text-midnight mb-8">
-        Shopping Cart
-        <span className="ml-3 text-base font-normal text-smoke bg-warmIvory px-3 py-1 rounded-full">
-          {cartItems.length} {cartItems.length === 1 ? 'item' : 'items'}
-        </span>
+        Shopping cart <span className="text-base font-normal text-smoke">({cartItems.length} item{cartItems.length === 1 ? '' : 's'})</span>
       </h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Items */}
-        <div className="lg:col-span-2 space-y-3">
-          {cartItems.map((item) => (
-            <div key={item.productId} className="bg-pureWhite border border-parchment rounded-2xl p-6 shadow-sm p-4 flex gap-4 items-center">
-              <div className="w-20 h-20 rounded-xl overflow-hidden bg-warmIvory flex-shrink-0">
-                <img src={item.image} alt={item.name} className="w-full h-full object-cover"
-                  onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name)}&size=80&background=27272a&color=a78bfa`; }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-midnight text-sm line-clamp-2">{item.name}</p>
-                <p className="text-vividGold font-extrabold text-sm mt-0.5">₹{item.price.toLocaleString('en-IN')}</p>
-              </div>
-              {/* Qty */}
-              <div className="flex items-center bg-warmIvory border border-parchment rounded-lg overflow-hidden flex-shrink-0">
-                <button onClick={() => updateQuantity(item.productId, Math.max(1, item.quantity - 1))}
-                  className="px-2.5 py-1.5 text-smoke hover:text-midnight hover:bg-warmIvory transition text-sm font-bold">−</button>
-                <span className="px-2.5 py-1.5 text-sm font-semibold text-midnight min-w-[2rem] text-center">{item.quantity}</span>
-                <button onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                  className="px-2.5 py-1.5 text-smoke hover:text-midnight hover:bg-warmIvory transition text-sm font-bold">+</button>
-              </div>
-              <p className="font-bold text-midnight text-sm w-20 text-right flex-shrink-0">
-                ₹{(item.price * item.quantity).toLocaleString('en-IN')}
-              </p>
-              <button onClick={() => removeFromCart(item.productId)}
-                className="text-smoke hover:text-red-400 transition flex-shrink-0 ml-1 p-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          ))}
-        </div>
+        <ul className="lg:col-span-2 space-y-3">
+          {/* a removed line slides out and the rest glide up to fill the gap */}
+          <AnimatePresence mode="popLayout" initial={false}>
+          {cartItems.map((item) => {
+            const problem = lineProblem(item);
+            return (
+              <m.li key={item.productId} layout="position"
+                initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96, transition: T_EXIT }}
+                transition={T_STATE}
+                className={`card p-4 flex gap-4 ${problem ? 'border-red-300' : ''}`}>
+                <Link to={`/products/${item.productId}`} className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-warmIvory shrink-0 p-2">
+                  <img src={item.image} alt={item.name} onError={onImgError} className="w-full h-full object-contain" />
+                </Link>
+                <div className="flex-1 min-w-0 flex flex-col">
+                  <div className="flex justify-between gap-3">
+                    <Link to={`/products/${item.productId}`} className="font-semibold text-midnight text-sm line-clamp-2 hover:text-vividGold">{item.name}</Link>
+                    <p className="font-bold text-midnight shrink-0">{formatINR(item.price * item.quantity)}</p>
+                  </div>
+                  <p className="text-smoke text-xs mt-0.5">{formatINR(item.price)} each</p>
+                  {problem && (
+                    <p className="text-red-600 text-xs font-semibold mt-1 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {problem}</p>
+                  )}
+                  <div className="flex items-center justify-between mt-auto pt-2">
+                    {item.stock === 0 ? <span /> : (
+                      <QuantityStepper size="sm" value={item.quantity} max={maxQtyFor(item)} onChange={(q) => updateQuantity(item.productId, q)} />
+                    )}
+                    <button onClick={() => removeFromCart(item.productId)} className="text-xs font-semibold text-smoke hover:text-red-600 inline-flex items-center gap-1 transition">
+                      <Trash2 className="w-4 h-4" /> Remove
+                    </button>
+                  </div>
+                </div>
+              </m.li>
+            );
+          })}
+          </AnimatePresence>
+        </ul>
 
-        {/* Summary */}
-        <div className="bg-pureWhite border border-parchment rounded-2xl p-6 shadow-sm p-6 h-fit sticky top-20">
-          <h2 className="font-bold text-lg text-midnight mb-5">Order Summary</h2>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between text-smoke">
-              <span>Subtotal</span>
-              <span className="text-midnight">₹{cartTotal.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between text-smoke">
-              <span>Shipping</span>
-              <span className={shipping === 0 ? 'text-emerald-400 font-medium' : 'text-midnight'}>
-                {shipping === 0 ? '🎉 FREE' : `₹${shipping}`}
-              </span>
-            </div>
-            {cartTotal <= 999 && (
-              <p className="text-[11px] text-smoke bg-warmIvory rounded-lg px-3 py-2">
-                Add ₹{(1000 - cartTotal).toLocaleString('en-IN')} more for free shipping!
-              </p>
-            )}
-            <div className="border-t border-parchment pt-3 flex justify-between font-bold text-lg">
-              <span className="text-midnight">Total</span>
-              <span className="text-vividGold font-extrabold">₹{(cartTotal + shipping).toLocaleString('en-IN')}</span>
-            </div>
-          </div>
-          <button onClick={() => navigate('/checkout')} className="bg-vividGold text-midnight font-semibold rounded-full px-5 py-2 hover:opacity-90 transition text-center inline-flex items-center justify-center w-full py-3.5 text-sm mt-6">
-            Proceed to Checkout →
+        {/* the whole column sticks, so the checkout button stays under the summary */}
+        <div className="h-fit lg:sticky lg:top-24">
+          <OrderSummary itemsTotal={cartTotal} />
+          {blocked && <p className="text-xs text-red-600 mt-3">Fix the highlighted items before checking out.</p>}
+          <button onClick={() => navigate('/checkout')} disabled={blocked} className="btn-primary w-full !py-3.5 mt-4">
+            Proceed to checkout <ArrowRight className="w-4 h-4" />
           </button>
-          <button onClick={() => navigate('/products')} className="btn-ghost w-full py-2.5 text-sm mt-2 text-smoke">
-            ← Continue Shopping
-          </button>
+          <Link to="/products" className="btn-ghost w-full mt-2">Continue shopping</Link>
         </div>
       </div>
     </div>

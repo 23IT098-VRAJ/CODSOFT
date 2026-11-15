@@ -1,46 +1,27 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const rateLimit = require('express-rate-limit');
+const auth = require('../controllers/authController');
+const { protect } = require('../middleware/auth');
+const validate = require('../middleware/validate');
+const s = require('../validators/schemas');
 
 const router = express.Router();
 
-const signToken = (user) =>
-  jwt.sign({ _id: user._id, name: user.name, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-// POST /api/auth/register
-router.post('/register', async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ message: 'All fields required' });
-
-    const existing = await User.findOne({ email });
-    if (existing) return res.status(400).json({ message: 'Email already in use' });
-
-    const hashed = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email, password: hashed });
-    const token = signToken(user);
-    return res.status(201).json({ token, user: { _id: user._id, name: user.name, email: user.email, role: user.role } });
-  } catch (err) {
-    return res.status(500).json({ message: err.message });
-  }
+// Slow down password guessing: 20 attempts per 15 minutes per IP.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { message: 'Too many attempts. Please try again in a few minutes.' },
 });
 
-// POST /api/auth/login
-router.post('/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: 'User not found' });
+router.post('/register', authLimiter, validate({ body: s.register }), auth.register);
+router.post('/login', authLimiter, validate({ body: s.login }), auth.login);
 
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ message: 'Invalid password' });
-
-    const token = signToken(user);
-    return res.status(200).json({ token, user: { _id: user._id, name: user.name, email: user.email, role: user.role } });
-  } catch (err) {
-    return res.status(500).json({ message: err.message });
-  }
-});
+router.get('/me', protect, auth.getMe);
+router.put('/me', protect, validate({ body: s.updateProfile }), auth.updateMe);
+router.put('/password', protect, authLimiter, validate({ body: s.changePassword }), auth.changePassword);
 
 module.exports = router;

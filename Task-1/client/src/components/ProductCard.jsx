@@ -1,63 +1,121 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { m } from 'motion/react';
+import { Check, Heart, ShoppingCart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useWishlist } from '../context/WishlistContext';
+import { useToast } from './Toast';
+import { StarRating } from './ui';
+import Reveal from './motion/Reveal';
+import IconSwap from './motion/IconSwap';
+import { DUR, EASE_OUT, PRESS, STAGGER_LIST } from '../lib/motion';
+import { formatINR, onImgError } from '../lib/format';
 
-export default function ProductCard({ product }) {
+// Defined once, outside the component, so every card shares the same objects
+// and a re-render never hands Motion a "new" animation to diff.
+const HOVER_LIFT = { y: -4 };
+const HOVER_TRANSITION = { duration: DUR.press, ease: EASE_OUT };
+
+// `index` staggers the entrance of cards in a grid: each card fades up
+// slightly after the one before it as the row scrolls into view.
+export default function ProductCard({ product, index = 0 }) {
   const { addToCart } = useCart();
-  const navigate = useNavigate();
+  const wishlist = useWishlist();
+  const { showToast } = useToast();
+  const saved = wishlist.has(product._id);
+  const soldOut = product.stock === 0;
 
-  const filled = Math.round(product.rating?.average || 0);
-  const stars = Array.from({ length: 5 }, (_, i) => i < filled);
+  // After a successful add the cart icon briefly becomes a tick.
+  const [justAdded, setJustAdded] = useState(false);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
 
-  const handleAddToCart = (e) => {
-    e.stopPropagation();
-    addToCart({ productId: product._id, name: product.name, price: product.price, quantity: 1, image: product.images?.[0] || '' });
+  const handleAdd = () => {
+    const { added } = addToCart(product, 1);
+    showToast(added ? `${product.name} added to cart` : 'You already have the maximum quantity in your cart', added ? 'success' : 'info');
+    if (added) {
+      setJustAdded(true);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setJustAdded(false), 1400);
+    }
   };
 
   return (
-    <div
-      onClick={() => navigate(`/products/${product._id}`)}
-      className="bg-pureWhite border border-parchment rounded-2xl p-6 group flex flex-col overflow-hidden cursor-pointer hover:shadow-md hover:border-vividGold transition duration-200"
-    >
-      <div className="relative w-32 h-32 rounded-full bg-parchment flex items-center justify-center mx-auto mb-6">
-        <img
-          src={product.images?.[0]}
-          alt={product.name}
-          className="w-[70%] h-[70%] object-contain drop-shadow-lg group-hover:scale-110 transition-transform duration-500"
-          onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(product.name)}&size=400&background=EDE5D0&color=1F2937`; }}
-        />
-        {product.stock < 10 && product.stock > 0 && (
-          <span className="absolute -top-2 -right-2 bg-yellow-100 text-yellow-800 border border-yellow-200 px-2 py-0.5 rounded-full text-[10px] font-bold">Low</span>
-        )}
-        {product.stock === 0 && (
-          <span className="absolute -top-2 -right-2 bg-red-100 text-red-800 border border-red-200 px-2 py-0.5 rounded-full text-[10px] font-bold">Out</span>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-1.5 flex-1 text-center">
-        <p className="text-xs text-smoke uppercase font-bold tracking-wider">{product.brand}</p>
-        <h3 className="font-semibold text-midnight text-lg line-clamp-1">{product.name}</h3>
-
-        <div className="flex items-center justify-center gap-1.5">
-          <div className="flex gap-0.5">
-            {stars.map((filled, i) => (
-              <svg key={i} className={`w-3 h-3 ${filled ? 'text-vividGold' : 'text-parchment'}`} fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-              </svg>
-            ))}
-          </div>
-          <span className="text-smoke text-xs">({product.rating?.count || 0})</span>
-        </div>
-
-        <p className="text-vividGold font-extrabold text-xl mt-2">₹{product.price.toLocaleString('en-IN')}</p>
-
-        <button
-          onClick={handleAddToCart}
-          disabled={product.stock === 0}
-          className="bg-midnight text-pureWhite rounded-full w-full py-2.5 mt-4 font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+    <Reveal as="article" delay={Math.min(index, 8) * STAGGER_LIST} className="h-full">
+      <m.div
+        whileHover={HOVER_LIFT}
+        transition={HOVER_TRANSITION}
+        className="card group relative flex flex-col h-full overflow-hidden hover:shadow-xl hover:border-vividGold/60 transition-shadow"
+      >
+        <m.button
+          whileTap={PRESS}
+          onClick={() => wishlist.toggle(product._id)}
+          aria-label={saved ? 'Remove from wishlist' : 'Save to wishlist'}
+          aria-pressed={saved}
+          className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-pureWhite/90 border border-parchment flex items-center justify-center hover:border-vividGold"
         >
-          {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
-        </button>
+          <IconSwap swapKey={saved ? 'saved' : 'unsaved'}>
+            <Heart className={`w-4 h-4 ${saved ? 'fill-red-500 text-red-500' : 'text-smoke'}`} />
+          </IconSwap>
+        </m.button>
+
+        <Link to={`/products/${product._id}`} className="block bg-warmIvory/60 aspect-square p-6 overflow-hidden">
+          <img
+            src={product.images?.[0] || ''}
+            alt={product.name}
+            loading="lazy"
+            onError={onImgError}
+            className={`w-full h-full object-contain group-hover:scale-105 transition-transform ${soldOut ? 'opacity-50 grayscale' : ''}`}
+          />
+        </Link>
+
+        {soldOut ? (
+          <span className="badge-danger absolute top-3 left-3">Out of stock</span>
+        ) : product.stock < 10 ? (
+          <span className="badge-warning absolute top-3 left-3">Only {product.stock} left</span>
+        ) : null}
+
+        <div className="flex flex-col flex-1 p-4">
+          <p className="text-[11px] text-smoke uppercase font-bold tracking-wider truncate">{product.brand}</p>
+          <Link to={`/products/${product._id}`} className="font-semibold text-midnight leading-snug line-clamp-2 mt-0.5 hover:text-vividGold">
+            {product.name}
+          </Link>
+
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <StarRating rating={product.rating?.average || 0} size="w-3.5 h-3.5" />
+            <span className="text-smoke text-xs">({product.rating?.count || 0})</span>
+          </div>
+
+          <div className="flex items-end justify-between gap-2 mt-auto pt-3">
+            <p className="text-midnight font-extrabold text-lg">{formatINR(product.price)}</p>
+            <m.button
+              whileTap={PRESS}
+              onClick={handleAdd}
+              disabled={soldOut}
+              aria-label={`Add ${product.name} to cart`}
+              className={`btn !px-3.5 !py-2 text-pureWhite ${justAdded ? 'bg-emerald-600' : 'bg-midnight hover:bg-bodyInk'}`}
+            >
+              <IconSwap swapKey={justAdded ? 'done' : 'add'}>
+                {justAdded ? <Check className="w-4 h-4" /> : <ShoppingCart className="w-4 h-4" />}
+              </IconSwap>
+              <span className="hidden sm:inline">{justAdded ? 'Added' : 'Add'}</span>
+            </m.button>
+          </div>
+        </div>
+      </m.div>
+    </Reveal>
+  );
+}
+
+export function SkeletonCard() {
+  return (
+    <div className="card overflow-hidden" aria-hidden="true">
+      <div className="aspect-square skeleton rounded-none" />
+      <div className="p-4 space-y-2.5">
+        <div className="h-2.5 skeleton w-1/3" />
+        <div className="h-4 skeleton w-5/6" />
+        <div className="h-3 skeleton w-1/2" />
+        <div className="h-8 skeleton mt-3" />
       </div>
     </div>
   );

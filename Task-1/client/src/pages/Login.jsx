@@ -1,74 +1,96 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
-import api from '../lib/axios';
+import { Field, Spinner } from '../components/ui';
+import { SoftSpotlightBackdrop } from '../components/motion/backgrounds';
+import Reveal from '../components/motion/Reveal';
+import BorderBeam from '../components/motion/BorderBeam';
+import api, { errorMessage } from '../lib/axios';
+import { usePageTitle } from '../hooks';
+
+// Shared frame for the login and register pages.
+export function AuthCard({ title, subtitle, children, footer }) {
+  return (
+    <div className="relative min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12 overflow-hidden">
+      <SoftSpotlightBackdrop />
+      <Reveal inView={false} className="relative w-full max-w-md card p-8 shadow-xl">
+        <BorderBeam size={120} duration={8} />
+        <div className="text-center mb-8">
+          <p className="text-vividGold font-extrabold text-2xl">ShopIndi</p>
+          <h1 className="text-2xl font-bold text-midnight mt-3">{title}</h1>
+          <p className="text-smoke text-sm mt-1">{subtitle}</p>
+        </div>
+        {children}
+        <p className="text-smoke text-sm text-center mt-6">{footer}</p>
+      </Reveal>
+    </div>
+  );
+}
+
+export function PasswordInput({ value, onChange, error, autoComplete, id }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <input id={id} type={visible ? 'text' : 'password'} value={value} onChange={onChange} autoComplete={autoComplete}
+        className={`input pr-11 ${error ? 'input-error' : ''}`} />
+      <button type="button" onClick={() => setVisible((v) => !v)} aria-label={visible ? 'Hide password' : 'Show password'}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-smoke hover:text-midnight">
+        {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      </button>
+    </div>
+  );
+}
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  usePageTitle('Log in');
+  const { user, login } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from; // the page that sent the visitor here
+
+  const [form, setForm] = useState({ email: '', password: '' });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const landing = (u) => from || (u.role === 'admin' ? '/admin' : '/');
+  if (user && !loading) return <Navigate to={landing(user)} replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.email.trim() || !form.password) return setError('Enter your email and password');
     setLoading(true);
+    setError('');
     try {
-      const { data } = await api.post('/auth/login', { email, password });
+      const { data } = await api.post('/auth/login', form);
       login(data.token, data.user);
-      showToast('Welcome back! 👋', 'success');
-      navigate(data.user.role === 'admin' ? '/admin' : '/');
+      showToast(`Welcome back, ${data.user.name.split(' ')[0]}!`, 'success');
+      navigate(landing(data.user), { replace: true });
     } catch (err) {
-      showToast(err.response?.data?.message || 'Login failed', 'error');
-    } finally { setLoading(false); }
+      setError(errorMessage(err, 'Login failed'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-[calc(100vh-64px)] flex items-center justify-center px-4 py-16">
-      <div className="w-full max-w-md">
-        {/* Glow bg */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-96 h-96 bg-violet-600/10 rounded-full blur-3xl" />
-        </div>
-
-        <div className="relative bg-pureWhite border border-parchment rounded-2xl p-6 shadow-sm p-8 shadow-2xl shadow-black/50">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <div className="w-14 h-14 bg-gradient-to-br from-navy to-navy-hover rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4 shadow-lg shadow-violet-500/30">
-              🛍️
-            </div>
-            <h1 className="text-2xl font-bold text-midnight">Welcome back</h1>
-            <p className="text-smoke text-sm mt-1">Sign in to your ShopIndi account</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="text-xs text-smoke font-medium mb-1.5 block uppercase tracking-wider">Email</label>
-              <input id="login-email" type="email" placeholder="you@example.com" value={email}
-                onChange={(e) => setEmail(e.target.value)} className="bg-pureWhite border border-parchment text-bodyInk rounded-xl px-4 py-2.5 outline-none focus:border-vividGold focus:ring-1 focus:ring-vividGold w-full" required />
-            </div>
-            <div>
-              <label className="text-xs text-smoke font-medium mb-1.5 block uppercase tracking-wider">Password</label>
-              <input id="login-password" type="password" placeholder="••••••••" value={password}
-                onChange={(e) => setPassword(e.target.value)} className="bg-pureWhite border border-parchment text-bodyInk rounded-xl px-4 py-2.5 outline-none focus:border-vividGold focus:ring-1 focus:ring-vividGold w-full" required />
-            </div>
-            <button type="submit" disabled={loading}
-              className="bg-vividGold text-midnight font-semibold rounded-full px-5 py-2 hover:opacity-90 transition text-center inline-flex items-center justify-center w-full py-3 text-sm mt-2">
-              {loading ? 'Signing in…' : 'Sign In'}
-            </button>
-          </form>
-
-          <p className="text-smoke text-sm text-center mt-6">
-            Don't have an account?{' '}
-            <button onClick={() => navigate('/register')}
-              className="text-vividGold hover:text-vividGold font-medium transition">
-              Create one free
-            </button>
-          </p>
-        </div>
-      </div>
-    </div>
+    <AuthCard title="Welcome back" subtitle="Log in to your ShopIndi account"
+      footer={<>New here? <Link to="/register" state={{ from }} className="font-semibold text-midnight underline hover:text-vividGold">Create an account</Link></>}>
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        {error && <p role="alert" className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-2.5">{error}</p>}
+        <Field label="Email">
+          <input id="login-email" type="email" className="input" placeholder="you@example.com" value={form.email} onChange={set('email')} autoComplete="email" />
+        </Field>
+        <Field label="Password">
+          <PasswordInput id="login-password" value={form.password} onChange={set('password')} autoComplete="current-password" />
+        </Field>
+        <button type="submit" disabled={loading} className="btn-primary w-full !py-3">
+          {loading && <Spinner className="w-4 h-4" />} Log in
+        </button>
+      </form>
+    </AuthCard>
   );
 }

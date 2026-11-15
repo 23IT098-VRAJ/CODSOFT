@@ -1,21 +1,18 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { usePageTitle } from '../hooks';
 
 export default function NotFound() {
-  const navigate = useNavigate();
+  usePageTitle('Page not found');
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4">
-      <div className="relative mb-8">
-        <p className="text-[120px] font-black text-zinc-900 leading-none select-none">404</p>
-        <p className="absolute inset-0 flex items-center justify-center text-[120px] font-black gradient-text leading-none opacity-20 blur-sm select-none">404</p>
+      <p className="text-[110px] font-black text-parchment leading-none select-none animate-bob" aria-hidden="true">404</p>
+      <h1 className="text-2xl font-bold text-midnight mt-2">Page not found</h1>
+      <p className="text-smoke max-w-xs mt-2">The page you're looking for doesn't exist or was moved.</p>
+      <div className="flex gap-3 mt-8">
+        <Link to="/" className="btn-primary">Go home</Link>
+        <Link to="/products" className="btn-outline">Browse products</Link>
       </div>
-      <h1 className="text-2xl font-bold text-midnight mb-3">Page not found</h1>
-      <p className="text-smoke max-w-xs mb-8">
-        The page you're looking for doesn't exist or was moved.
-      </p>
-      <button onClick={() => navigate('/')} className="bg-vividGold text-midnight font-semibold rounded-full px-5 py-2 hover:opacity-90 transition text-center inline-flex items-center justify-center px-8 py-3 text-sm">
-        ← Go Home
-      </button>
     </div>
   );
 }

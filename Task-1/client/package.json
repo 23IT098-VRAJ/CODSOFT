@@ -9,10 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@paper-design/shaders-react": "^0.0.82",
     "axios": "^1.5.0",
+    "canvas-confetti": "^1.9.4",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.73.0",
+    "motion": "^14.14.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.16.0"
+    "react-router-dom": "^6.16.0",
+    "recharts": "^2.15.4",
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.1.0",
