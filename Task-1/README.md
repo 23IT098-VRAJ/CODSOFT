@@ -155,6 +155,7 @@ The products page has no filter state of its own — it renders whatever the que
 ```
 Task-1/
 ├── vercel.json                  # Single-project Vercel deploy (API + SPA)
+├── api/index.js                 # Vercel serverless entry → server/server.js
 ├── server/
 │   ├── server.js                # Entry: listens when run directly, exports the app for serverless/tests
 │   ├── app.js                   # Express app: middleware, routes, error handling
@@ -357,13 +358,32 @@ npm test
 
 ## Deployment
 
-**Vercel (single project).** Import the repository with **Root Directory** set to `Task-1`. `vercel.json` builds the client as a static site and runs `server/server.js` as a serverless function behind `/api/*`. Set `MONGO_URI` and `JWT_SECRET` in the project's environment variables. The frontend then calls same-origin `/api`, so no `VITE_API_URL` or CORS setup is needed.
+**Vercel, single project (recommended).** The React build is served as static files and the Express app runs as one serverless function (`api/index.js` → `server/server.js`) behind `/api/*`, so the frontend calls `/api` on its own domain — no `VITE_API_URL`, no CORS setup.
 
-**Split (e.g. Vercel + Render).**
+1. On Vercel, **Add New → Project**, import this repository and set **Root Directory** to `Task-1`.
+2. **Framework Preset:** *Other*. Leave Build / Output / Install commands at their defaults — `vercel.json` sets them (installs `server` and `client`, builds `client`, serves `client/dist`).
+3. **Environment variables** (Production and Preview):
+
+   | Name | Value |
+   |---|---|
+   | `MONGO_URI` | Atlas connection string, including the database name |
+   | `JWT_SECRET` | A long random string (e.g. `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`) |
+   | `JWT_EXPIRES_IN` | Optional, default `7d` |
+
+   Do **not** set `VITE_API_URL` or `CLIENT_URL` for this setup.
+4. **Deploy**, then open `https://<project>.vercel.app/api/health` — it should return `{"status":"ok",…}`.
+
+Or from the CLI: `cd Task-1 && vercel` (link a new project, accept the detected settings), add the variables with `vercel env add MONGO_URI` and `vercel env add JWT_SECRET`, then `vercel --prod`.
+
+**Seed data and admin.** With the Atlas `MONGO_URI` in `server/.env`, run `npm run seed` from `server/` to load the catalogue; register on the live site, then run `npm run make-admin -- you@example.com`.
+
+**Database.** In MongoDB Atlas create a free cluster and a database user, and under **Network Access** allow `0.0.0.0/0` — Vercel functions do not have fixed IP addresses.
+
+**Split (API elsewhere, e.g. Render).**
 
 | Part | Settings |
 |---|---|
-| API | Root `Task-1/server` · start `npm start` · env `MONGO_URI`, `JWT_SECRET`, `CLIENT_URL=<frontend URL>` |
+| API | Root `Task-1/server` · build `npm install` · start `npm start` · env `MONGO_URI`, `JWT_SECRET`, `CLIENT_URL=<frontend URL>` |
 | Frontend | Root `Task-1/client` · build `npm run build` · output `dist` · env `VITE_API_URL=<API URL>/api` |
 
 ---

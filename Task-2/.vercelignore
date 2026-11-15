@@ -1,0 +1,6 @@
+# Keep local secrets, installed packages and build output out of CLI uploads.
+**/node_modules
+**/dist
+**/.env
+**/.env.local
+server/tests

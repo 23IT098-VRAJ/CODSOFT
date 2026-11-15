@@ -136,6 +136,7 @@ Writing a feed entry is wrapped so that a failure is logged and ignored — the 
 ```
 Task-2/
 ├── vercel.json                    # Single-project Vercel deploy (API + SPA)
+├── api/index.js                   # Vercel serverless entry → server/server.js
 ├── improvements.md                # What changed in the frontend, and the motion audit
 ├── client/                        # React (Vite) frontend
 │   └── src/
@@ -311,16 +312,31 @@ npm test
 
 ## Deployment
 
-**Split: Render (API) + Vercel (frontend).**
+**Vercel, single project (recommended).** The React build is served as static files and the Express app runs as one serverless function (`api/index.js` → `server/server.js`) behind `/api/*`, so the frontend calls `/api` on its own domain — no `VITE_API_URL`, no CORS setup.
+
+1. On Vercel, **Add New → Project**, import this repository and set **Root Directory** to `Task-2`.
+2. **Framework Preset:** *Other*. Leave Build / Output / Install commands at their defaults — `vercel.json` sets them (installs `server` and `client`, builds `client`, serves `client/dist`).
+3. **Environment variables** (Production and Preview):
+
+   | Name | Value |
+   |---|---|
+   | `MONGO_URI` | Atlas connection string, including the database name |
+   | `JWT_SECRET` | A long random string (e.g. `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`) |
+   | `JWT_EXPIRES_IN` | Optional, default `7d` |
+
+   Do **not** set `VITE_API_URL` or `CLIENT_URL` for this setup.
+4. **Deploy**, then open `https://<project>.vercel.app/api/health` — it should return `{"status":"ok",…}`.
+
+Or from the CLI: `cd Task-2 && vercel` (link a new project, accept the detected settings), add the variables with `vercel env add MONGO_URI` and `vercel env add JWT_SECRET`, then `vercel --prod`.
+
+**Database.** In MongoDB Atlas create a free cluster and a database user, and under **Network Access** allow `0.0.0.0/0` — Vercel functions do not have fixed IP addresses.
+
+**Split (API elsewhere, e.g. Render).**
 
 | Part | Settings |
 |---|---|
 | API | Root `Task-2/server` · build `npm install` · start `npm start` · env `MONGO_URI`, `JWT_SECRET`, `CLIENT_URL=<frontend URL>`. `server/render.yaml` describes this service. |
-| Frontend | Root `Task-2/client` · build `npm run build` · output `dist` · env `VITE_API_URL=<API origin, no /api>` |
-
-**Vercel, single project.** Import the repository with **Root Directory** set to `Task-2`. `vercel.json` builds the client as a static site and runs `server/server.js` as a serverless function behind `/api/*`. Set `MONGO_URI` and `JWT_SECRET`; leave `VITE_API_URL` empty so the frontend calls same-origin `/api`.
-
-**Database.** Create a free MongoDB Atlas cluster, add a database user, allow the host's IP addresses, and copy the connection string into `MONGO_URI`.
+| Frontend | Root `Task-2/client` · build `npm run build` · output `dist` · env `VITE_API_URL=<API origin, no /api>`. `client/vercel.json` adds the SPA rewrite. |
 
 ---
 
