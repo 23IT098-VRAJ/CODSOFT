@@ -1,82 +1,27 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const rateLimit = require('express-rate-limit');
+const auth = require('../controllers/authController');
+const { protect } = require('../middleware/auth');
+const validate = require('../middleware/validate');
+const s = require('../validators/schemas');
 
 const router = express.Router();
 
-const AVATAR_COLORS = ["#3730A3","#78350F","#064E3B","#7F1D1D","#4C1D95","#881337"];
-
-const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
-};
-
-// POST /api/auth/register
-router.post('/register', async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'All fields are required' });
-    }
-
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
-      return res.status(400).json({ message: 'Email already registered' });
-    }
-
-    const avatarColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
-
-    const user = await User.create({ name, email, password, avatarColor });
-
-    const token = generateToken(user._id);
-
-    res.status(201).json({
-      token,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        avatarColor: user.avatarColor,
-      },
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+// Slow down password guessing: 20 attempts per 15 minutes per IP.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { message: 'Too many attempts. Please try again in a few minutes.' },
 });
 
-// POST /api/auth/login
-router.post('/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
+router.post('/register', authLimiter, validate({ body: s.register }), auth.register);
+router.post('/login', authLimiter, validate({ body: s.login }), auth.login);
 
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
-    }
-
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid email or password' });
-    }
-
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid email or password' });
-    }
-
-    const token = generateToken(user._id);
-
-    res.json({
-      token,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        avatarColor: user.avatarColor,
-      },
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
+router.get('/me', protect, auth.getMe);
+router.put('/me', protect, validate({ body: s.updateProfile }), auth.updateMe);
+router.put('/password', protect, authLimiter, validate({ body: s.changePassword }), auth.changePassword);
 
 module.exports = router;

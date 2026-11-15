@@ -1,43 +1,32 @@
 require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const mongoose = require('mongoose');
 
-const authRoutes = require('./routes/auth');
-const projectRoutes = require('./routes/projects');
-const taskRoutes = require('./routes/tasks');
+const app = require('./app');
+const { connectDB } = require('./config/db');
 
-const app = express();
+// Started directly (`node server.js`, Render, local dev) → listen on a port.
+// Imported (Vercel serverless function, tests) → just export the app.
+if (require.main === module) {
+  const PORT = process.env.PORT || 5001;
 
-// Middleware
-app.use(cors({
-  origin: process.env.CLIENT_URL
-    ? process.env.CLIENT_URL.split(',')
-    : ['http://localhost:5173'],
-  credentials: true,
-}));
-app.use(express.json());
+  // The server starts even if the database is briefly unreachable: requests
+  // get a clear 503 and the connection is retried on the next one, instead
+  // of the whole process exiting.
+  connectDB()
+    .then(() => console.log('MongoDB connected'))
+    .catch((err) => console.error('MongoDB connection failed:', err.details || err.message));
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/projects', projectRoutes);
-app.use('/api/tasks', taskRoutes);
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date() });
-});
-
-// Connect to MongoDB and start server
-const PORT = process.env.PORT || 5000;
-
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log('MongoDB connected');
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-  })
-  .catch((err) => {
-    console.error('MongoDB connection error:', err);
-    process.exit(1);
+  // Express 5 reports a failure to bind (most often "port already in use")
+  // by passing the error to this callback rather than throwing. Without this
+  // check the server would print "listening" while accepting no connections.
+  app.listen(PORT, (err) => {
+    if (err) {
+      const reason = err.code === 'EADDRINUSE' ? `port ${PORT} is already in use by another program` : err.message;
+      console.error(`Could not start the API: ${reason}.`);
+      if (err.code === 'EADDRINUSE') console.error(`Stop the other program, or set a different PORT in server/.env.`);
+      process.exit(1);
+    }
+    console.log(`TaskFlow API listening on http://localhost:${PORT}`);
   });
+}
+
+module.exports = app;

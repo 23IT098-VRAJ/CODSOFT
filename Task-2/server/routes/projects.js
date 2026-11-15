@@ -1,191 +1,27 @@
 const express = require('express');
-const Project = require('../models/Project');
-const Task = require('../models/Task');
-const User = require('../models/User');
+const projects = require('../controllers/projectController');
 const { protect } = require('../middleware/auth');
+const { loadProject, requireOwner } = require('../middleware/access');
+const validate = require('../middleware/validate');
+const s = require('../validators/schemas');
 
 const router = express.Router();
+router.use(protect);
 
-// GET /api/projects — Get all projects where user is owner or member
-router.get('/', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const projects = await Project.find({
-      $or: [{ ownerId: userId }, { members: userId }],
-    }).populate('members', '_id name email avatarColor');
+// Validates the :id, then loads the project and checks membership.
+const project = [validate({ params: s.idParam }), loadProject()];
 
-    // Attach task stats to each project
-    const projectsWithStats = await Promise.all(
-      projects.map(async (project) => {
-        const [done, total] = await Promise.all([
-          Task.countDocuments({ projectId: project._id, status: 'Done' }),
-          Task.countDocuments({ projectId: project._id }),
-        ]);
-        return { ...project.toObject(), taskStats: { done, total } };
-      })
-    );
+router.get('/', validate({ query: s.projectQuery }), projects.listProjects);
+router.post('/', validate({ body: s.projectCreate }), projects.createProject);
 
-    res.json(projectsWithStats);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
+router.get('/:id', project, projects.getProject);
+router.put('/:id', validate({ params: s.idParam, body: s.projectUpdate }), loadProject(), projects.updateProject);
+router.delete('/:id', project, requireOwner, projects.deleteProject);
 
-// POST /api/projects — Create a new project
-router.post('/', protect, async (req, res) => {
-  try {
-    const { name, description, color, status, dueDate } = req.body;
-    if (!name) {
-      return res.status(400).json({ message: 'Project name is required' });
-    }
+router.get('/:id/stats', project, projects.getStats);
+router.get('/:id/activity', validate({ params: s.idParam, query: s.activityQuery }), loadProject(), projects.getActivity);
 
-    const project = await Project.create({
-      name,
-      description,
-      color,
-      status,
-      dueDate,
-      ownerId: req.user._id,
-    });
-
-    const populated = await Project.findById(project._id).populate(
-      'members',
-      '_id name email avatarColor'
-    );
-
-    res.status(201).json(populated);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// GET /api/projects/:id — Get single project
-router.get('/:id', protect, async (req, res) => {
-  try {
-    const project = await Project.findById(req.params.id).populate(
-      'members',
-      '_id name email avatarColor'
-    );
-
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
-
-    const userId = req.user._id.toString();
-    const isMember =
-      project.ownerId.toString() === userId ||
-      project.members.some((m) => m._id.toString() === userId);
-
-    if (!isMember) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    res.json(project);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// PUT /api/projects/:id — Update project
-router.put('/:id', protect, async (req, res) => {
-  try {
-    const project = await Project.findById(req.params.id);
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
-
-    const userId = req.user._id.toString();
-    const isMember =
-      project.ownerId.toString() === userId ||
-      project.members.some((m) => m.toString() === userId);
-
-    if (!isMember) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    const { name, description, color, status, dueDate } = req.body;
-    if (name !== undefined) project.name = name;
-    if (description !== undefined) project.description = description;
-    if (color !== undefined) project.color = color;
-    if (status !== undefined) project.status = status;
-    if (dueDate !== undefined) project.dueDate = dueDate;
-
-    await project.save();
-
-    const updated = await Project.findById(project._id).populate(
-      'members',
-      '_id name email avatarColor'
-    );
-
-    res.json(updated);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// DELETE /api/projects/:id — Delete project (owner only)
-router.delete('/:id', protect, async (req, res) => {
-  try {
-    const project = await Project.findById(req.params.id);
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
-
-    if (project.ownerId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Only the owner can delete this project' });
-    }
-
-    await Project.findByIdAndDelete(req.params.id);
-    await Task.deleteMany({ projectId: req.params.id });
-
-    res.json({ message: 'Project deleted' });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// POST /api/projects/:id/members — Add member by email
-router.post('/:id/members', protect, async (req, res) => {
-  try {
-    const project = await Project.findById(req.params.id);
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
-
-    const userId = req.user._id.toString();
-    const isMember =
-      project.ownerId.toString() === userId ||
-      project.members.some((m) => m.toString() === userId);
-
-    if (!isMember) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    const { email } = req.body;
-    const newUser = await User.findOne({ email: email.toLowerCase() });
-    if (!newUser) {
-      return res.status(404).json({ message: 'User not found with that email' });
-    }
-
-    const alreadyMember = project.members.some(
-      (m) => m.toString() === newUser._id.toString()
-    );
-    if (alreadyMember) {
-      return res.status(400).json({ message: 'User is already a member' });
-    }
-
-    project.members.push(newUser._id);
-    await project.save();
-
-    const updated = await Project.findById(project._id).populate(
-      'members',
-      '_id name email avatarColor'
-    );
-
-    res.json(updated);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
+router.post('/:id/members', validate({ params: s.idParam, body: s.memberBody }), loadProject(), projects.addMember);
+router.delete('/:id/members/:userId', validate({ params: s.memberParams }), loadProject(), projects.removeMember);
 
 module.exports = router;

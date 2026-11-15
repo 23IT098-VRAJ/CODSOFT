@@ -1,45 +1,39 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const AVATAR_COLORS = ["#3730A3","#78350F","#064E3B","#7F1D1D","#4C1D95","#881337"];
-
 const UserSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, trim: true },
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-    },
-    password: { type: String, required: true, minlength: 6 },
-    avatarColor: {
-      type: String,
-      default: '#3730A3',
-    },
-    createdAt: { type: Date, default: Date.now },
+    name: { type: String, required: [true, 'Name is required'], trim: true, maxlength: 60 },
+    email: { type: String, required: [true, 'Email is required'], unique: true, lowercase: true, trim: true },
+    // select:false keeps the hash out of every query unless explicitly asked for.
+    password: { type: String, required: true, minlength: 6, select: false },
+    avatarColor: { type: String, default: '#3730A3' },
   },
   {
+    timestamps: true,
     toJSON: {
       transform(doc, ret) {
         delete ret.password;
+        delete ret.__v;
         return ret;
       },
     },
   }
 );
 
-// Hash password before save
-UserSchema.pre('save', async function () {
+// Hash the password whenever it is set or changed.
+UserSchema.pre('save', async function hashPassword() {
   if (!this.isModified('password')) return;
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+  this.password = await bcrypt.hash(this.password, 10);
 });
 
-// Compare password instance method
-UserSchema.methods.comparePassword = async function (candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.password);
+UserSchema.methods.comparePassword = function comparePassword(candidate) {
+  return bcrypt.compare(candidate, this.password);
+};
+
+// Shape sent to clients — never includes the password hash.
+UserSchema.methods.toPublic = function toPublic() {
+  return { _id: this._id, name: this.name, email: this.email, avatarColor: this.avatarColor };
 };
 
 module.exports = mongoose.model('User', UserSchema);
