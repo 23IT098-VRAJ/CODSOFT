@@ -275,6 +275,19 @@ Query parameters for `GET /`: `q`, `category` (repeatable), `brand`, `minPrice`,
 
 ---
 
+## Ports
+
+Both internship projects use fixed, separate ports, so they can run at the same time:
+
+| | API | Web app |
+|---|---|---|
+| **Task-1 — ShopIndi** | `5000` | `5173` |
+| Task-2 — TaskFlow | `5001` | `5174` |
+
+If a port is already taken, the server or Vite stops with a message saying so, instead of starting on a different port.
+
+---
+
 ## Running against your own database
 
 **Prerequisites:** Node.js 18+, a MongoDB connection string (the Atlas free tier works).

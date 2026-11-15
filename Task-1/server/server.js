@@ -12,7 +12,15 @@ if (require.main === module) {
     .then(() => console.log('MongoDB connected'))
     .catch((err) => console.error('MongoDB connection failed:', err.details || err.message));
 
-  app.listen(PORT, () => console.log(`ShopIndi API listening on http://localhost:${PORT}`));
+  const server = app.listen(PORT, () => console.log(`ShopIndi API listening on http://localhost:${PORT}`));
+
+  // Say plainly why the server could not start, instead of a stack trace.
+  server.on('error', (err) => {
+    const reason = err.code === 'EADDRINUSE' ? `port ${PORT} is already in use by another program` : err.message;
+    console.error(`Could not start the API: ${reason}.`);
+    if (err.code === 'EADDRINUSE') console.error('Stop the other program, or set a different PORT in server/.env.');
+    process.exit(1);
+  });
 }
 
 module.exports = app;
