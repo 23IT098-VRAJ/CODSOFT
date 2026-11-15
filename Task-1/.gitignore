@@ -3,3 +3,7 @@ node_modules
 dist
 .DS_Store
 Task1_execution.md
+
+.vercel
+.env*
+!.env.example
